@@ -35,10 +35,10 @@ namespace CozifyWindows
             timer1.Enabled = false;
 
             label5.Text = "Log file: " + Form1.temperatureLogFile;
+            var selected_temp_sensors = Form1.readSetting("selected_temp_sensors");
+            var selected_temp_sensors_list =  selected_temp_sensors.Split('§');
 
-            var selected_temp_sensors_list = Properties.Settings.Default.selected_temp_sensors.Split('§');
-
-            textBoxTemperatureLogSeconds.Text = Properties.Settings.Default.temperature_log_seconds.ToString();
+            textBoxTemperatureLogSeconds.Text =Form1.readSetting( "temperature_log_seconds");
 
             if (Form1.deviceList != null)
             {
@@ -70,8 +70,7 @@ namespace CozifyWindows
             {
                 selected_temp_sensors += item + "§";
             }
-            Properties.Settings.Default.selected_temp_sensors = selected_temp_sensors;
-            Properties.Settings.Default.Save();
+    Form1.saveSetting(    "selected_temp_sensors", selected_temp_sensors);            
         }
 
         private void buttonAddSensor_Click(object sender, EventArgs e)
@@ -109,12 +108,11 @@ namespace CozifyWindows
         private void textBoxTemperatureLogSeconds_TextChanged(object sender, EventArgs e)
         {
             if (int.TryParse(textBoxTemperatureLogSeconds.Text, out int seconds) == true)
-            {
-                Properties.Settings.Default.temperature_log_seconds = seconds;
-                Properties.Settings.Default.Save();
+            {                
+                Form1.saveSetting("temperature_log_seconds", seconds.ToString());                
                 Form1.temperature_log_seconds = seconds;
             }
-            textBoxTemperatureLogSeconds.Text = Properties.Settings.Default.temperature_log_seconds.ToString();
+            textBoxTemperatureLogSeconds.Text =Form1.readSetting("temperature_log_seconds");
         }
     }
 

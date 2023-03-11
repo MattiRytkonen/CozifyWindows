@@ -55,6 +55,10 @@
             this.buttonSpotPriceControl = new System.Windows.Forms.Button();
             this.comboBox1 = new System.Windows.Forms.ComboBox();
             this.label5 = new System.Windows.Forms.Label();
+            this.buttonStartMqttServer = new System.Windows.Forms.Button();
+            this.timerLogging = new System.Windows.Forms.Timer(this.components);
+            this.buttonStartMqttClient = new System.Windows.Forms.Button();
+            this.button3 = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // label1
@@ -81,7 +85,7 @@
             this.textBoxEmail.Name = "textBoxEmail";
             this.textBoxEmail.Size = new System.Drawing.Size(295, 20);
             this.textBoxEmail.TabIndex = 10;
-            this.textBoxEmail.TextChanged += new System.EventHandler(this.textBoxEmail_TextChanged);
+            this.textBoxEmail.Leave += new System.EventHandler(this.textBoxEmail_Leave_1);
             // 
             // textBoxPassword
             // 
@@ -89,7 +93,7 @@
             this.textBoxPassword.Name = "textBoxPassword";
             this.textBoxPassword.Size = new System.Drawing.Size(295, 20);
             this.textBoxPassword.TabIndex = 30;
-            this.textBoxPassword.TextChanged += new System.EventHandler(this.textBoxPassword_TextChanged);
+            this.textBoxPassword.Leave += new System.EventHandler(this.textBoxPassword_Leave);
             // 
             // buttonLogin
             // 
@@ -103,7 +107,7 @@
             // 
             // buttonTemporaryPassword
             // 
-            this.buttonTemporaryPassword.Location = new System.Drawing.Point(422, 8);
+            this.buttonTemporaryPassword.Location = new System.Drawing.Point(503, 8);
             this.buttonTemporaryPassword.Name = "buttonTemporaryPassword";
             this.buttonTemporaryPassword.Size = new System.Drawing.Size(141, 23);
             this.buttonTemporaryPassword.TabIndex = 20;
@@ -210,7 +214,7 @@
             this.textBoxDeviceControlId.Name = "textBoxDeviceControlId";
             this.textBoxDeviceControlId.Size = new System.Drawing.Size(100, 20);
             this.textBoxDeviceControlId.TabIndex = 100;
-            this.textBoxDeviceControlId.TextChanged += new System.EventHandler(this.textBoxDeviceControlId_TextChanged);
+            this.textBoxDeviceControlId.Leave += new System.EventHandler(this.textBoxDeviceControlId_Leave);
             // 
             // buttonDeviceOn
             // 
@@ -296,11 +300,49 @@
             this.label5.TabIndex = 23;
             this.label5.Text = "ip address:";
             // 
+            // buttonStartMqttServer
+            // 
+            this.buttonStartMqttServer.Location = new System.Drawing.Point(285, 294);
+            this.buttonStartMqttServer.Name = "buttonStartMqttServer";
+            this.buttonStartMqttServer.Size = new System.Drawing.Size(116, 23);
+            this.buttonStartMqttServer.TabIndex = 171;
+            this.buttonStartMqttServer.Text = "Start MQTT Server";
+            this.buttonStartMqttServer.UseVisualStyleBackColor = true;
+            this.buttonStartMqttServer.Click += new System.EventHandler(this.buttonStartMqttServer_Click);
+            // 
+            // timerLogging
+            // 
+            this.timerLogging.Interval = 700;
+            this.timerLogging.Tick += new System.EventHandler(this.timerLogging_Tick);
+            // 
+            // buttonStartMqttClient
+            // 
+            this.buttonStartMqttClient.Location = new System.Drawing.Point(285, 265);
+            this.buttonStartMqttClient.Name = "buttonStartMqttClient";
+            this.buttonStartMqttClient.Size = new System.Drawing.Size(116, 23);
+            this.buttonStartMqttClient.TabIndex = 172;
+            this.buttonStartMqttClient.Text = "Start MQTT Client";
+            this.buttonStartMqttClient.UseVisualStyleBackColor = true;
+            this.buttonStartMqttClient.Click += new System.EventHandler(this.buttonStartMqttClient_Click);
+            // 
+            // button3
+            // 
+            this.button3.Location = new System.Drawing.Point(327, 210);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(112, 23);
+            this.button3.TabIndex = 175;
+            this.button3.Text = "RuuviTag Sensors";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Click += new System.EventHandler(this.button3_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(800, 461);
+            this.Controls.Add(this.button3);
+            this.Controls.Add(this.buttonStartMqttClient);
+            this.Controls.Add(this.buttonStartMqttServer);
             this.Controls.Add(this.label5);
             this.Controls.Add(this.comboBox1);
             this.Controls.Add(this.buttonSpotPriceControl);
@@ -359,6 +401,10 @@
         private System.Windows.Forms.Button buttonSpotPriceControl;
         private System.Windows.Forms.ComboBox comboBox1;
         private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.Button buttonStartMqttServer;
+        private System.Windows.Forms.Timer timerLogging;
+        private System.Windows.Forms.Button buttonStartMqttClient;
+        private System.Windows.Forms.Button button3;
     }
 }
 

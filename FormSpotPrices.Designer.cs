@@ -29,9 +29,6 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.buttonRemoveSensor = new System.Windows.Forms.Button();
-            this.buttonAddSensor = new System.Windows.Forms.Button();
-            this.listBoxSelectedDevices = new System.Windows.Forms.ListBox();
             this.listBoxAvailableDevices = new System.Windows.Forms.ListBox();
             this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
@@ -41,35 +38,11 @@
             this.label4 = new System.Windows.Forms.Label();
             this.textBoxTimerSpotPrice = new System.Windows.Forms.TextBox();
             this.label5 = new System.Windows.Forms.Label();
+            this.textBoxMaxPrice = new System.Windows.Forms.TextBox();
+            this.label6 = new System.Windows.Forms.Label();
+            this.label7 = new System.Windows.Forms.Label();
+            this.buttonSaveSettings = new System.Windows.Forms.Button();
             this.SuspendLayout();
-            // 
-            // buttonRemoveSensor
-            // 
-            this.buttonRemoveSensor.Location = new System.Drawing.Point(205, 99);
-            this.buttonRemoveSensor.Name = "buttonRemoveSensor";
-            this.buttonRemoveSensor.Size = new System.Drawing.Size(75, 23);
-            this.buttonRemoveSensor.TabIndex = 13;
-            this.buttonRemoveSensor.Text = "<-";
-            this.buttonRemoveSensor.UseVisualStyleBackColor = true;
-            this.buttonRemoveSensor.Click += new System.EventHandler(this.buttonRemoveSensor_Click);
-            // 
-            // buttonAddSensor
-            // 
-            this.buttonAddSensor.Location = new System.Drawing.Point(205, 70);
-            this.buttonAddSensor.Name = "buttonAddSensor";
-            this.buttonAddSensor.Size = new System.Drawing.Size(75, 23);
-            this.buttonAddSensor.TabIndex = 12;
-            this.buttonAddSensor.Text = "->";
-            this.buttonAddSensor.UseVisualStyleBackColor = true;
-            this.buttonAddSensor.Click += new System.EventHandler(this.buttonAddSensor_Click);
-            // 
-            // listBoxSelectedDevices
-            // 
-            this.listBoxSelectedDevices.FormattingEnabled = true;
-            this.listBoxSelectedDevices.Location = new System.Drawing.Point(286, 49);
-            this.listBoxSelectedDevices.Name = "listBoxSelectedDevices";
-            this.listBoxSelectedDevices.Size = new System.Drawing.Size(186, 95);
-            this.listBoxSelectedDevices.TabIndex = 11;
             // 
             // listBoxAvailableDevices
             // 
@@ -78,6 +51,7 @@
             this.listBoxAvailableDevices.Name = "listBoxAvailableDevices";
             this.listBoxAvailableDevices.Size = new System.Drawing.Size(186, 95);
             this.listBoxAvailableDevices.TabIndex = 10;
+            this.listBoxAvailableDevices.SelectedIndexChanged += new System.EventHandler(this.listBoxAvailableDevices_SelectedIndexChanged);
             // 
             // label2
             // 
@@ -123,7 +97,7 @@
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(15, 207);
+            this.label4.Location = new System.Drawing.Point(15, 402);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(144, 13);
             this.label4.TabIndex = 16;
@@ -131,7 +105,7 @@
             // 
             // textBoxTimerSpotPrice
             // 
-            this.textBoxTimerSpotPrice.Location = new System.Drawing.Point(236, 204);
+            this.textBoxTimerSpotPrice.Location = new System.Drawing.Point(236, 399);
             this.textBoxTimerSpotPrice.Name = "textBoxTimerSpotPrice";
             this.textBoxTimerSpotPrice.Size = new System.Drawing.Size(100, 20);
             this.textBoxTimerSpotPrice.TabIndex = 17;
@@ -140,25 +114,62 @@
             // label5
             // 
             this.label5.AutoSize = true;
-            this.label5.Location = new System.Drawing.Point(353, 207);
+            this.label5.Location = new System.Drawing.Point(342, 402);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(47, 13);
             this.label5.TabIndex = 18;
             this.label5.Text = "seconds";
+            // 
+            // textBoxMaxPrice
+            // 
+            this.textBoxMaxPrice.Location = new System.Drawing.Point(236, 200);
+            this.textBoxMaxPrice.Name = "textBoxMaxPrice";
+            this.textBoxMaxPrice.Size = new System.Drawing.Size(100, 20);
+            this.textBoxMaxPrice.TabIndex = 20;
+            this.textBoxMaxPrice.TextChanged += new System.EventHandler(this.textBoxMaxPrice_TextChanged);
+            // 
+            // label6
+            // 
+            this.label6.AutoSize = true;
+            this.label6.Location = new System.Drawing.Point(15, 203);
+            this.label6.Name = "label6";
+            this.label6.Size = new System.Drawing.Size(156, 13);
+            this.label6.TabIndex = 19;
+            this.label6.Text = "Keep device ON when price <=";
+            // 
+            // label7
+            // 
+            this.label7.AutoSize = true;
+            this.label7.Location = new System.Drawing.Point(342, 203);
+            this.label7.Name = "label7";
+            this.label7.Size = new System.Drawing.Size(41, 13);
+            this.label7.TabIndex = 21;
+            this.label7.Text = "c/kWh";
+            // 
+            // buttonSaveSettings
+            // 
+            this.buttonSaveSettings.Location = new System.Drawing.Point(15, 232);
+            this.buttonSaveSettings.Name = "buttonSaveSettings";
+            this.buttonSaveSettings.Size = new System.Drawing.Size(75, 23);
+            this.buttonSaveSettings.TabIndex = 22;
+            this.buttonSaveSettings.Text = "Save";
+            this.buttonSaveSettings.UseVisualStyleBackColor = true;
+            this.buttonSaveSettings.Click += new System.EventHandler(this.buttonSaveSettings_Click);
             // 
             // FormSpotPrices
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.buttonSaveSettings);
+            this.Controls.Add(this.label7);
+            this.Controls.Add(this.textBoxMaxPrice);
+            this.Controls.Add(this.label6);
             this.Controls.Add(this.label5);
             this.Controls.Add(this.textBoxTimerSpotPrice);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.textBoxSpotHours);
             this.Controls.Add(this.label3);
-            this.Controls.Add(this.buttonRemoveSensor);
-            this.Controls.Add(this.buttonAddSensor);
-            this.Controls.Add(this.listBoxSelectedDevices);
             this.Controls.Add(this.listBoxAvailableDevices);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
@@ -170,10 +181,6 @@
         }
 
         #endregion
-
-        private System.Windows.Forms.Button buttonRemoveSensor;
-        private System.Windows.Forms.Button buttonAddSensor;
-        private System.Windows.Forms.ListBox listBoxSelectedDevices;
         private System.Windows.Forms.ListBox listBoxAvailableDevices;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label1;
@@ -183,5 +190,9 @@
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.TextBox textBoxTimerSpotPrice;
         private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.TextBox textBoxMaxPrice;
+        private System.Windows.Forms.Label label6;
+        private System.Windows.Forms.Label label7;
+        private System.Windows.Forms.Button buttonSaveSettings;
     }
 }

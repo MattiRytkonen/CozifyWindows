@@ -1,4 +1,6 @@
-﻿using Newtonsoft.Json;
+﻿using MQTTnet.Server;
+using MQTTnet;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -8,16 +10,21 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using MQTTnet.Diagnostics;
+using MQTTnet.Client;
+using System.Xml;
 
 namespace CozifyWindows
 {
-
     public partial class Form1 : Form
     {
+        const string dataSeparator = "§'.'§";
+        const string linefeed = "-§linefeed§-";
         private string selected_hubkey;
         private string lan_ip;
         private string api_version;
@@ -25,78 +32,275 @@ namespace CozifyWindows
         public static string temperatureLogFile;
         public static int temperature_log_seconds;
         public static List<SpotPrice> spotPriceList;
+        private static string settingsfile;
+        public static string email;
+        public static string log_string;
+        public static Queue<string> mqtt_payload = new Queue<string>();
 
         public Form1()
         {
             InitializeComponent();
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+        public static string readSetting(string key)
         {
-            timer1.Enabled = false;
-            deviceList = new List<Device>();
-            spotPriceList = new List<SpotPrice>();
-            
-            
-            int item_counter = 0;
-            foreach(var item in comboBox1.Items)
+            if (string.IsNullOrWhiteSpace(settingsfile))
             {
-                if(item.ToString() == Properties.Settings.Default.ip_address_mode)
+                getSettingsFile();
+            }
+            if (string.IsNullOrWhiteSpace(settingsfile))
+            {
+                return "";
+            }
+            if (File.Exists(settingsfile) == false)
+            {
+                return "";
+            }
+            var rows = File.ReadAllLines(settingsfile);
+            string searchstring = key + "=";
+            foreach (var row in rows)
+            {
+                if (row.StartsWith(searchstring))
                 {
-                    comboBox1.SelectedIndex = item_counter;
-                }                
-                    item_counter++;
+                    return row.Substring(searchstring.Length).Replace(linefeed, Environment.NewLine);
+                }
+            }
+            return "";
+        }
+
+        public static void saveSetting(string key, string value)
+        {
+            if (string.IsNullOrWhiteSpace(settingsfile))
+            {
+                getSettingsFile();
+            }
+            if (string.IsNullOrWhiteSpace(settingsfile))
+            {
+                return;
+            }
+            value = value.Replace("\n", linefeed);
+            value = value.Replace("\r", "");
+
+            string searchstring = key + "=";
+
+            var sb = new StringBuilder();
+            if (File.Exists(settingsfile) == true)
+            {
+                var rows = File.ReadAllLines(settingsfile);
+
+                foreach (var row in rows)
+                {
+                    if (row.StartsWith(searchstring) == false)
+                    {
+                        sb.AppendLine(row);
+                    }
+                }
+            }
+            if (string.IsNullOrWhiteSpace(value) == false)
+            {
+                sb.AppendLine(searchstring + value);
             }
 
-            Properties.Settings.Default.Save();
+            System.IO.File.WriteAllText(settingsfile, sb.ToString());
+
+            return;
+        }
+        public static void getSettingsFile()
+        {
+
+            StringBuilder settingsfilename = new StringBuilder();
+
+            var not_allowed_characters = Path.GetInvalidFileNameChars();
+
+            if (string.IsNullOrWhiteSpace(email) == true)
+            {
+                return;
+            }
+
+            foreach (char x in email)
+            {
+                if (not_allowed_characters.Contains(x) == false)
+                {
+                    settingsfilename.Append(x);
+                }
+            }
+            settingsfile = Path.Combine(Application.StartupPath, "settings-" + settingsfilename.ToString() + ".txt");
+        }
+
+        private string getEmail()
+        {
+            foreach (var arg in Environment.GetCommandLineArgs())
+            {
+                string searchString = "email=";
+                if (arg.StartsWith(searchString) == true)
+                {
+                    var email = arg.Replace(searchString, "");
+                    return email;
+                }
+            }
+
+            var emailfile = Path.Combine(Application.StartupPath, "email.txt");
+            if (File.Exists(emailfile))
+            {
+                var email_address = System.IO.File.ReadAllText(emailfile);
+                email_address = email_address.Replace("\r", "").Replace("\n", "").Trim();
+                return email_address;
+            }
+            return null;
+        }
+
+        public void saveEmail(string email)
+        {
+            var emailfile = Path.Combine(Application.StartupPath, "email.txt");
+            System.IO.File.WriteAllText(emailfile, email);
+        }
+
+        private async void timer1_Tick(object sender, EventArgs e)
+        {
+            timer1.Enabled = false;
+
+            email = getEmail();
+
+            if (string.IsNullOrWhiteSpace(email) == true)
+            {
+                MessageBox.Show("please enter email address!");
+                return;
+            }
+
+            textBoxEmail.Text = email;
+            getSettingsFile();
+
+            deviceList = new List<Device>();
+            spotPriceList = new List<SpotPrice>();
 
 
-            parseSpotPrices(Properties.Settings.Default.spot_price_list);
+            int item_counter = 0;
+            foreach (var item in comboBox1.Items)
+            {
+                if (item.ToString() == readSetting("ip_address_mode"))
+                {
+                    comboBox1.SelectedIndex = item_counter;
+                }
+                item_counter++;
+            }
 
-            textBoxDeviceControlId.Text = Properties.Settings.Default.selected_test_device;
+            if (comboBox1.SelectedIndex == -1)
+            {
+                comboBox1.SelectedIndex = 0;
+            }
 
-            temperatureLogFile = Path.Combine(Application.StartupPath, "temperatures.txt");
 
-            textBoxEmail.Text = Properties.Settings.Default.email;
-            textBoxPassword.Text = Properties.Settings.Default.password;
-
-            var hubs = Properties.Settings.Default.hubs.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+            var hubs = readSetting("hubs").Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var hubdata in hubs)
             {
                 var hub = hubdata.Split(':');
                 listBox1.Items.Add(hub[0]);
             }
 
-            selectHub(Properties.Settings.Default.selected_hub);
+            selectHub(readSetting("selected_hub"));
 
-            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.devices) == false)
+
+            bool autoclose = false;
+
+
+            var device_id = getCommandArg("device_id");
+            var action = getCommandArg("action");
+
+
+
+            if (string.IsNullOrWhiteSpace(device_id) == false)
             {
-                parsedevicelist(Properties.Settings.Default.devices);
+                int errCounter = 0;
+                string result = null;
+                while (errCounter < 3)
+                {
+                    if (action.ToUpper() == "ON")
+                    {
+                        result = await deviceON(device_id);
+                        autoclose = true;
+                    }
+                    else if (action.ToUpper() == "OFF")
+                    {
+                        result = await deviceOFF(device_id);
+                        autoclose = true;
+                    }
+                    if (string.IsNullOrWhiteSpace(result) == true)
+                    {
+                        errCounter++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                if (autoclose)
+                {
+                    int exitCode = 0;
+                    if (string.IsNullOrWhiteSpace(result) == true)
+                    {
+                        exitCode = 255;
+                    }
+                    log("Exit with code " + exitCode.ToString());
+                    Environment.Exit(exitCode);
+                    return;
+                }
+
             }
 
-            if (Properties.Settings.Default.temperature_log_seconds > 0)
+
+
+
+
+
+
+
+
+            parseSpotPrices(readSetting("spot_price_list"));
+
+            textBoxDeviceControlId.Text = readSetting("selected_test_device");
+
+            temperatureLogFile = Path.Combine(Application.StartupPath, "temperatures.txt");
+
+            var devices_setting = readSetting("devices");
+            if (string.IsNullOrWhiteSpace(devices_setting) == false)
             {
-                temperature_log_seconds = Properties.Settings.Default.temperature_log_seconds;
-                timerTemperatureLogging.Interval = Properties.Settings.Default.temperature_log_seconds * 1000;
+                parsedevicelist(devices_setting);
             }
 
+            var temperature_log_seconds_string = readSetting("temperature_log_seconds");
+            int.TryParse(temperature_log_seconds_string, out int temperature_log_seconds);
 
+            if (temperature_log_seconds > 0)
+            {
+                timerTemperatureLogging.Interval = temperature_log_seconds * 1000;
+            }
         }
 
+        public string getCommandArg(string key)
+        {
+            foreach (var arg in Environment.GetCommandLineArgs())
+            {
+                string searchString = key + "=";
+                if (arg.StartsWith(searchString) == true)
+                {
+                    return arg.Substring(searchString.Length);
+                }
+            }
+            return null;
+        }
 
-        private void buttonLogin_Click(object sender, EventArgs e)
+        private async void buttonLogin_Click(object sender, EventArgs e)
         {
             string json = @"{""email"": """ + textBoxEmail.Text + @""", ""password"": """ + textBoxPassword.Text + @"""}";
-            var token = HttpPost("https://api.cozify.fi/ui/0.2/user/emaillogin", json);
+            var token = await HttpPost("https://api.cozify.fi/ui/0.2/user/emaillogin", json);
             if (string.IsNullOrWhiteSpace(token) == false)
             {
-                Properties.Settings.Default.token = token;
-                Properties.Settings.Default.Save();
+                saveSetting("token", token);
                 log("We have got token.");
                 textBoxPassword.Text = "";
             }
         }
-        private void log(string text)
+        public void log(string text)
         {
             if (textBoxLog.Text.Length > 60000)
             {
@@ -116,14 +320,17 @@ namespace CozifyWindows
             finally { }
 
         }
-        private void buttonTemporaryPassword_Click(object sender, EventArgs e)
+
+
+
+        private async void buttonTemporaryPassword_Click(object sender, EventArgs e)
         {
             var url = "https://api.cozify.fi/ui/0.2/user/requestlogin?email=" + textBoxEmail.Text;
-            HttpPost(url, "");
+            await HttpPost(url, "");
             MessageBox.Show("Please check your email");
         }
 
-        private string HttpPost(string url, string postData, string method = "POST")
+        private async Task<string> HttpPost(string url, string postData, string method = "POST")
         {
             try
             {
@@ -140,14 +347,17 @@ namespace CozifyWindows
                 //              log("selected hubkey:" + selected_hubkey);
                 //                req.Headers.Add("Authorization", selected_hubkey);
 
+
+
                 if (string.IsNullOrWhiteSpace(lan_ip) == false && url.Contains(lan_ip) == true)
                 {
                     req.Headers.Add("Authorization", selected_hubkey);
                 }
                 else
                 {
+                    var token = readSetting("token");
                     req.Headers.Add("X-Hub-Key", selected_hubkey);
-                    req.Headers.Add("Authorization", "Bearer " + Properties.Settings.Default.token);
+                    req.Headers.Add("Authorization", "Bearer " + token);
                 }
 
 
@@ -165,7 +375,7 @@ namespace CozifyWindows
 
                 newStream.Close();
 
-                HttpWebResponse resp = req.GetResponse() as HttpWebResponse;
+                HttpWebResponse resp = await req.GetResponseAsync() as HttpWebResponse;
                 StreamReader reader = new StreamReader(resp.GetResponseStream());
                 result = reader.ReadToEnd();
                 if (result == null)
@@ -177,6 +387,7 @@ namespace CozifyWindows
             }
             catch (Exception ex)
             {
+                log("HttpPost ERROR url: " + url);
                 string msg = "HttpPost ERROR " + ex.ToString();
                 log(msg);
                 return null;
@@ -184,7 +395,7 @@ namespace CozifyWindows
             finally { }
         }
 
-        private string HttpGet(string url)
+        private async Task<string> HttpGet(string url)
         {
             try
             {
@@ -195,7 +406,7 @@ namespace CozifyWindows
 
 
 
-                if (string.IsNullOrWhiteSpace(lan_ip) == false && string.IsNullOrWhiteSpace (lan_ip)==false && url.Contains(lan_ip) == true && string.IsNullOrWhiteSpace(selected_hubkey) == false)
+                if (string.IsNullOrWhiteSpace(lan_ip) == false && string.IsNullOrWhiteSpace(lan_ip) == false && url.Contains(lan_ip) == true && string.IsNullOrWhiteSpace(selected_hubkey) == false)
                 {
                     req.Headers.Add("Authorization", selected_hubkey);
                 }
@@ -205,7 +416,8 @@ namespace CozifyWindows
                     {
                         req.Headers.Add("X-Hub-Key", selected_hubkey);
                     }
-                    req.Headers.Add("Authorization", "Bearer " + Properties.Settings.Default.token);
+                    var token = readSetting("token");
+                    req.Headers.Add("Authorization", "Bearer " + token);
                 }
 
 
@@ -227,7 +439,7 @@ namespace CozifyWindows
 
 
 
-                HttpWebResponse resp = req.GetResponse() as HttpWebResponse;
+                HttpWebResponse resp = await req.GetResponseAsync() as HttpWebResponse;
                 StreamReader reader = new StreamReader(resp.GetResponseStream());
                 result = reader.ReadToEnd();
                 if (result == null)
@@ -246,34 +458,20 @@ namespace CozifyWindows
             finally { }
         }
 
-
-        private void textBoxEmail_TextChanged(object sender, EventArgs e)
-        {
-            Properties.Settings.Default.email = textBoxEmail.Text;
-            Properties.Settings.Default.Save();
-        }
-
-        private void textBoxPassword_TextChanged(object sender, EventArgs e)
-        {
-            textBoxPassword.Text = textBoxPassword.Text.Trim();
-            Properties.Settings.Default.password = textBoxPassword.Text;
-            Properties.Settings.Default.Save();
-        }
-
         private void buttonHubKeys_Click(object sender, EventArgs e)
         {
             loadHubs();
         }
 
-        private void loadHubs()
+        private async void loadHubs()
         {
-            if(string.IsNullOrWhiteSpace(Properties.Settings.Default.token))
+            var token = readSetting("token");
+            if (string.IsNullOrWhiteSpace(token))
             {
                 return;
             }
 
-
-            var data1 = HttpGet("https://api.cozify.fi/ui/0.2/user/hubkeys");
+            var data1 = await HttpGet("https://api.cozify.fi/ui/0.2/user/hubkeys");
             if (string.IsNullOrWhiteSpace(data1))
             {
                 return;
@@ -291,57 +489,55 @@ namespace CozifyWindows
                 hubs += splitted[0] + ":" + splitted[1] + Environment.NewLine;
             }
 
-            Properties.Settings.Default.hubs = hubs;
-            Properties.Settings.Default.Save();
+            saveSetting("hubs", hubs);
         }
 
-        private void buttonRefreshToken_Click(object sender, EventArgs e)
+        private async void buttonRefreshToken_Click(object sender, EventArgs e)
         {
-            refreshToken();
+            await refreshToken();
         }
 
-        private void refreshToken()
+        private async Task refreshToken()
         {
-
-            var newtoken = HttpGet("https://api.cozify.fi/ui/0.2/user/refreshsession");
+            var newtoken = await HttpGet("https://api.cozify.fi/ui/0.2/user/refreshsession");
             if (string.IsNullOrWhiteSpace(newtoken))
             {
                 return;
             }
-
-            Properties.Settings.Default.token = newtoken;
-            Properties.Settings.Default.Save();
-
+            saveSetting("token", newtoken);
             log("token refreshed");
         }
 
-        private void buttonGetDevices_Click(object sender, EventArgs e)
+        private async void buttonGetDevices_Click(object sender, EventArgs e)
         {
-            getDeviceList();
-            getHubApiVersion();
-            getDeviceList();
+            await getDeviceList();
+            await getHubApiVersion();
+            await getDeviceList();
         }
-        private void getDeviceList()
+        private async Task getDeviceList()
         {
             deviceList = new List<Device>();
             if (string.IsNullOrWhiteSpace(api_version))
             {
-                getHubApiVersion();
+                await getHubApiVersion();
             }
 
-            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.hubs))
+            var hubs_1 = readSetting("hubs");
+
+            if (string.IsNullOrWhiteSpace(hubs_1))
             {
                 loadHubs();
             }
 
             if (listBox1.Items.Count == 0)
             {
-                var hubs = Properties.Settings.Default.hubs.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                var hub_string = readSetting("hubs");
+                var hubs = hub_string.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (var hubdata in hubs)
                 {
                     var hub = hubdata.Split(':');
                     listBox1.Items.Add(hub[0]);
-                }              
+                }
             }
             if (listBox1.Items.Count > 0)
             {
@@ -355,17 +551,15 @@ namespace CozifyWindows
                 url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices";
             }
 
-            var json = HttpGet(url);
+            var json = await HttpGet(url);
 
             if (string.IsNullOrWhiteSpace(json))
             {
                 return;
             }
 
-            Properties.Settings.Default.devices = json;
-            Properties.Settings.Default.Save();
+            saveSetting("devices", json);
             parsedevicelist(json);
-
         }
         private void parsedevicelist(string json)
         {
@@ -408,12 +602,14 @@ namespace CozifyWindows
         }
         private void selectHub(string hub_id)
         {
-            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.hubs))
+            var hubs1 = readSetting("hubs");
+            if (string.IsNullOrWhiteSpace(hubs1))
             {
                 loadHubs();
             }
 
-            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.hubs))
+            hubs1 = readSetting("hubs");
+            if (string.IsNullOrWhiteSpace(hubs1))
             {
                 return;
             }
@@ -422,7 +618,6 @@ namespace CozifyWindows
             {
                 listBox1.SelectedItem = hub_id;
             }
-            var hubs1 = Properties.Settings.Default.hubs;
 
             var hubs = hubs1.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -449,18 +644,24 @@ namespace CozifyWindows
                 listBox1.SelectedIndex = 0;
             }
 
-            Properties.Settings.Default.selected_hub = listBox1.SelectedItem.ToString();
-            Properties.Settings.Default.Save();
+            saveSetting("selected_hub", listBox1.SelectedItem.ToString());
         }
 
-        private void getHubApiVersion()
+        private async Task getHubApiVersion()
         {
+            api_version = readSetting("hub_api_version");
+            lan_ip = readSetting("lan_ip");
+            if (string.IsNullOrWhiteSpace(api_version) == false && string.IsNullOrWhiteSpace(lan_ip) == false)
+            {
+                return;
+            }
+
             var ip_list = new List<string>();
 
-            if (comboBox1.SelectedItem.ToString() != "API") {
-                  ip_list = getLanIpList();
+            if (comboBox1.SelectedItem.ToString() != "API")
+            {
+                ip_list = await getLanIpList();
             }
-           
 
             var ip = ip_list.FirstOrDefault();
 
@@ -471,7 +672,7 @@ namespace CozifyWindows
                 lan_ip = ip;
                 url = "http://" + lan_ip + ":8893/hub";
             }
-            var hub_info = HttpGet(url);
+            var hub_info = await HttpGet(url);
 
 
             if (string.IsNullOrWhiteSpace(hub_info))
@@ -490,6 +691,9 @@ namespace CozifyWindows
             var short_version = data3[0] + "." + data3[1];
 
             api_version = short_version;
+            lan_ip = ip;
+            saveSetting("hub_api_version", api_version);
+            saveSetting("lan_ip", lan_ip);
 
         }
         private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -505,23 +709,24 @@ namespace CozifyWindows
             selectHub(listBox1.SelectedItem.ToString());
         }
 
-        private void buttonGetApiVersion_Click(object sender, EventArgs e)
+        private async void buttonGetApiVersion_Click(object sender, EventArgs e)
         {
-            getHubApiVersion();
+            saveSetting("hub_api_version", "");
+            await getHubApiVersion();
         }
 
-        private void buttonGetLanIp_Click(object sender, EventArgs e)
+        private async void buttonGetLanIp_Click(object sender, EventArgs e)
         {
-            var ip_list = getLanIpList();
+            var ip_list = await getLanIpList();
             foreach (var ip in ip_list)
             {
                 log("lan ip: " + ip);
             }
 
         }
-        private List<string> getLanIpList()
+        private async Task<List<string>> getLanIpList()
         {
-            var data = HttpGet("https://api.cozify.fi/ui/0.2/hub/lan_ip");
+            var data = await HttpGet("https://api.cozify.fi/ui/0.2/hub/lan_ip");
             if (string.IsNullOrWhiteSpace(data))
             {
                 return null;
@@ -539,11 +744,16 @@ namespace CozifyWindows
             return ip_list;
 
         }
-        private void deviceON(string id)
+        private async Task<string> deviceON(string id)
         {
+            if (listBox1.Items.Count == 0)
+            {
+                await getDeviceList();
+            }
+
             if (string.IsNullOrWhiteSpace(api_version))
             {
-                getHubApiVersion();
+                await getHubApiVersion();
             }
             string data = "[{\"id\":\"" + id + "\", \"type\": \"CMD_DEVICE_ON\"}]";
             string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
@@ -552,14 +762,18 @@ namespace CozifyWindows
             {
                 url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices/command";
             }
-
-            HttpPost(url, data, "PUT");
+            log("deviceON:" + id);
+            return await HttpPost(url, data, "PUT");
         }
-        private void deviceOFF(string id)
+        private async Task<string> deviceOFF(string id)
         {
+            if (listBox1.Items.Count == 0)
+            {
+                await getDeviceList();
+            }
             if (string.IsNullOrWhiteSpace(api_version))
             {
-                getHubApiVersion();
+                await getHubApiVersion();
             }
             string data = "[{\"id\":\"" + id + "\", \"type\": \"CMD_DEVICE_OFF\"}]";
             string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
@@ -568,16 +782,17 @@ namespace CozifyWindows
             {
                 url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices/command";
             }
-            HttpPost(url, data, "PUT");
+            log("deviceOFF:" + id);
+            return await HttpPost(url, data, "PUT");
         }
-        private void buttonDeviceOn_Click(object sender, EventArgs e)
+        private async void buttonDeviceOn_Click(object sender, EventArgs e)
         {
-            deviceON(textBoxDeviceControlId.Text);
+            await deviceON(textBoxDeviceControlId.Text);
         }
 
-        private void buttonDeviceOff_Click(object sender, EventArgs e)
+        private async void buttonDeviceOff_Click(object sender, EventArgs e)
         {
-            deviceOFF(textBoxDeviceControlId.Text);
+            await deviceOFF(textBoxDeviceControlId.Text);
         }
 
         private void buttonTempSensors_Click(object sender, EventArgs e)
@@ -586,7 +801,7 @@ namespace CozifyWindows
             form2.Show();
         }
 
-        private void timerTemperatureLogging_Tick(object sender, EventArgs e)
+        private async void timerTemperatureLogging_Tick(object sender, EventArgs e)
         {
             if (temperature_log_seconds == 0)
             {
@@ -595,9 +810,9 @@ namespace CozifyWindows
             }
 
             timerTemperatureLogging.Interval = temperature_log_seconds * 1000;
-            var selected_temp_sensors_list = Properties.Settings.Default.selected_temp_sensors.Split('§');
+            var selected_temp_sensors_list = readSetting("selected_temp_sensors").Split('§');
 
-            getDeviceList();
+            await getDeviceList();
 
             string date = dateString();
 
@@ -628,11 +843,7 @@ namespace CozifyWindows
             return DateTime.Now.Year.ToString("0000") + "-" + DateTime.Now.Month.ToString("00") + "-" + DateTime.Now.Day.ToString("00") + " " + DateTime.Now.Hour.ToString("00") + ":" + DateTime.Now.Minute.ToString("00") + ":" + DateTime.Now.Second.ToString("00");
         }
 
-        private void textBoxDeviceControlId_TextChanged(object sender, EventArgs e)
-        {
-            Properties.Settings.Default.selected_test_device = textBoxDeviceControlId.Text;
-            Properties.Settings.Default.Save();
-        }
+
 
         private void parseSpotPrices(string json)
         {
@@ -661,8 +872,7 @@ namespace CozifyWindows
             var w = new WebClient();
             var data = w.DownloadString("https://api.spot-hinta.fi/TodayAndDayForward");
             log("downloadSpotPrices response: " + data);
-            Properties.Settings.Default.spot_price_list = data;
-            Properties.Settings.Default.Save();
+            saveSetting("spot_price_list", data);
             return data;
         }
 
@@ -672,36 +882,59 @@ namespace CozifyWindows
             parseSpotPrices(prices);
         }
 
-        private void timerSpotPrices_Tick(object sender, EventArgs e)
+        private async void timerSpotPrices_Tick(object sender, EventArgs e)
         {
-            if (Properties.Settings.Default.timer_spot_price_seconds == 0)
-            {
-                return;
-            }
-            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.selected_spot_devices))
-            {
-                return;
-            }
-            if (Properties.Settings.Default.spot_hours == 0)
+            var timer_spot_price_seconds_string = readSetting("timer_spot_price_seconds");
+
+            int.TryParse(timer_spot_price_seconds_string, out int timer_spot_price_seconds);
+            if (timer_spot_price_seconds == 0)
             {
                 return;
             }
 
+            var spot_price_controlled_devices = readSetting("spot_price_controlled_devices");
+            if (string.IsNullOrWhiteSpace(spot_price_controlled_devices))
+            {
+                return;
+            }
 
             timerSpotPrices.Enabled = false;
 
-            timerSpotPrices.Interval = Properties.Settings.Default.timer_spot_price_seconds * 1000;
+            timerSpotPrices.Interval = timer_spot_price_seconds * 1000;
 
-            var spot_device_list = Properties.Settings.Default.selected_spot_devices.Split('§');
+            var spot_device_list = spot_price_controlled_devices.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
 
 
-            foreach (var device in spot_device_list)
+            foreach (var row in spot_device_list)
             {
-                if (string.IsNullOrWhiteSpace(device) == true)
+                if (string.IsNullOrWhiteSpace(row) == true)
                 {
                     continue;
                 }
-                var dev = (from c1 in deviceList where c1.name == device select c1).FirstOrDefault();
+
+                var data = row.Split(new string[] { dataSeparator }, StringSplitOptions.None);
+                var devicename = data[0];
+
+                var cheapesthours = 0;
+                double maxprice = 0;
+
+                if (string.IsNullOrWhiteSpace(data[1]) == false)
+                {
+                    cheapesthours = Convert.ToInt32(data[1]);
+                }
+
+                if (string.IsNullOrWhiteSpace(data[2]) == false)
+                {
+                    maxprice = Convert.ToDouble(data[2]);
+                    maxprice = maxprice / 100;
+                }
+
+                if (maxprice <= 0 && cheapesthours <= 0)
+                {
+                    continue;
+                }
+
+                var dev = (from c1 in deviceList where c1.name == devicename select c1).FirstOrDefault();
                 if (dev != null && dev.type == "POWER_SOCKET")
                 {
                     var spotquery = (from c1 in spotPriceList
@@ -720,22 +953,53 @@ namespace CozifyWindows
                         return;
                     }
 
+                    bool turnOffByCheapestHours = false;
+                    bool turnOffByPrice = false;
 
-                    if (spotquery.rank <= Properties.Settings.Default.spot_hours)
+                    if (cheapesthours > 0)
                     {
-                        log("Turn device [" + dev.name + "] on based on spot rank [" + spotquery.rank.ToString() + "]");
-                        deviceON(dev.id);
+                        if (spotquery.rank > cheapesthours)
+                        {
+                            turnOffByCheapestHours = true;
+                        }
+                    }
+                    if (maxprice > 0)
+                    {
+                        if (spotquery.PriceWithTax > maxprice)
+                        {
+                            turnOffByPrice = true;
+                        }
+                    }
+                    if (turnOffByCheapestHours)
+                    {
+                        log("Turn device [" + dev.name + "] off based on spot rank [" + spotquery.rank.ToString() + "]");
+                    }
+
+                    if (turnOffByPrice)
+                    {
+                        log("Turn device [" + dev.name + "] off based on spot price [" + spotquery.PriceWithTax.ToString() + "]");
+                    }
+
+
+                    if (turnOffByCheapestHours || turnOffByPrice)
+                    {
+                        await deviceOFF(dev.id);
                     }
                     else
                     {
-                        log("Turn device [" + dev.name + "] off based on spot rank [" + spotquery.rank.ToString() + "]");
-                        deviceOFF(dev.id);
+                        log("Turn device [" + dev.name + "] on.");
+                        if (maxprice > 0)
+                        {
+                            log("Turn device [" + dev.name + "] on based on spot price [" + spotquery.PriceWithTax.ToString() + "]");
+                        }
+                        if (cheapesthours > 0)
+                        {
+                            log("Turn device [" + dev.name + "] on based on spot rank [" + spotquery.rank.ToString() + "]");
+                        }
+                        await deviceON(dev.id);
                     }
-
                 }
-
             }
-
 
             timerSpotPrices.Enabled = true;
         }
@@ -748,8 +1012,169 @@ namespace CozifyWindows
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            Properties.Settings.Default.ip_address_mode = comboBox1.SelectedItem.ToString();
-            Properties.Settings.Default.Save();
+            if (readSetting("ip_address_mode") != comboBox1.SelectedItem.ToString())
+            {
+                saveSetting("ip_address_mode", comboBox1.SelectedItem.ToString());
+            }
+        }
+        private void textBoxEmail_Leave_1(object sender, EventArgs e)
+        {
+            saveEmail(textBoxEmail.Text);
+        }
+
+        private void textBoxDeviceControlId_Leave(object sender, EventArgs e)
+        {
+            saveSetting("selected_test_device", textBoxDeviceControlId.Text);
+        }
+
+        private void textBoxPassword_Leave(object sender, EventArgs e)
+        {
+            textBoxPassword.Text = textBoxPassword.Text.Trim();
+        }
+
+        private async Task MQTTserver()
+        {
+            var mqttFactory = new MqttFactory();
+            //          var mqttFactory = new MqttFactory(new ConsoleLogger());
+
+
+            // The port for the default endpoint is 1883.
+            var mqttServerOptions = new MqttServerOptionsBuilder().WithDefaultEndpoint().Build();
+            var mqttServer = mqttFactory.CreateMqttServer(mqttServerOptions);
+            await mqttServer.StartAsync();
+        }
+
+        private async void buttonStartMqttServer_Click(object sender, EventArgs e)
+        {
+            await MQTTserver();
+            timerLogging.Enabled = true;
+        }
+
+        private void timerLogging_Tick(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(log_string) == false)
+            {
+                log(log_string);
+                log_string = "";
+            }
+
+            while (mqtt_payload.Count > 0)
+            {
+                var item = mqtt_payload.Dequeue();
+                var data1 = item.Split('}');
+                var data2 = data1[0].Split(new string[] { "\"data\":\t\"" }, StringSplitOptions.None);
+                var data3 = data2[1].Split('"');
+                var y = data3[0];
+                var data = y.Replace("0201061BFF990405", "");
+                var sensor_id = data.Substring(34);
+                data = data.Substring(0, 4);
+                var z = Convert.ToInt16(data, 16);
+                double temperature = z * 0.005;
+              var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
+                var data30 = data20[1].Split('"');
+                var unix = Convert.ToDouble(data30[0]);
+                var datetime = UnixTimeStampToDateTime(unix);
+                string timestamp = datetime.Year.ToString() + "-" + datetime.Month.ToString("00") + "-" + datetime.Day.ToString("00") + " " + datetime.Hour.ToString() + ":" + datetime.Minute.ToString("00") + ":" + datetime.Second.ToString("00");
+                log(@"Received payload
+   timestamp: " + timestamp + @"
+   temperature: " + temperature+@"
+   sensor id: "+sensor_id);
+
+            }        }
+
+        private async void buttonStartMqttClient_Click(object sender, EventArgs e)
+        {
+            timerLogging.Enabled = true;
+
+            //var mqttFactory = new MqttFactory(new ConsoleLogger());
+            var mqttFactory = new MqttFactory();
+
+var broker=            readSetting("mqtt_broker");
+            if(string.IsNullOrWhiteSpace(broker) == true)
+            {
+                MessageBox.Show("missing configuration: mqtt server address");
+                return;
+            }
+            int? broker_port = null;
+            var broker_address = broker;
+            if (broker.Contains(":")) {
+                var splitted = broker.Split(':');
+                broker_address = splitted[0]    ;
+                if (int.TryParse(splitted[1],out int port_number) == true)
+                {
+                    broker_port=port_number; 
+                }
+            }
+            var mqttClient = mqttFactory.CreateMqttClient();
+            var mqttClientOptions = new MqttClientOptionsBuilder()
+                .WithTcpServer(broker_address,broker_port)
+                .Build();
+            mqttClient.ApplicationMessageReceivedAsync += ee =>
+            {
+                if (string.IsNullOrWhiteSpace(log_string))
+                {
+                    log_string = "";
+                }
+
+                log_string += "Received application message." + Environment.NewLine;
+
+                var mqtt_message = Encoding.UTF8.GetString(ee.ApplicationMessage.Payload, 0, ee.ApplicationMessage.Payload.Length);
+
+                log_string += mqtt_message + Environment.NewLine;
+                mqtt_payload.Enqueue(mqtt_message);
+                return Task.CompletedTask;
+            };
+
+            await mqttClient.ConnectAsync(mqttClientOptions, CancellationToken.None);
+
+            var ruuvisensors = readSetting("mqtt_topics");
+
+            var sensors = ruuvisensors.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+            foreach(var sensor in sensors)
+            {
+                var mqttSubscribeOptions = mqttFactory.CreateSubscribeOptionsBuilder()
+                .WithTopicFilter(
+                    f =>
+                    {
+                        f.WithTopic(sensor);
+                    })
+                .Build();
+
+                var response = await mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
+            }
+            
+        }
+
+        public static DateTime UnixTimeStampToDateTime(double unixTimeStamp)
+        {
+            // Unix timestamp is seconds past epoch
+            DateTime dateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+            dateTime = dateTime.AddSeconds(unixTimeStamp).ToLocalTime();
+            return dateTime;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            var formRuuvi = new FormRuuvi();
+            formRuuvi.Show();
+        }
+    }
+    class ConsoleLogger : IMqttNetLogger
+    {
+        public bool IsEnabled => true;
+
+        public void Publish(MqttNetLogLevel logLevel, string source, string message, object[] parameters = null, Exception exception = null)
+        {
+            if (parameters != null && parameters.Length > 0)
+            {
+                message = string.Format(message, parameters);
+            }
+
+            if (Form1.log_string == null)
+            {
+                Form1.log_string = "";
+            }
+            Form1.log_string += message + Environment.NewLine;
         }
     }
 
