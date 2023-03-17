@@ -44,21 +44,18 @@
             this.label3 = new System.Windows.Forms.Label();
             this.buttonGetApiVersion = new System.Windows.Forms.Button();
             this.buttonGetLanIp = new System.Windows.Forms.Button();
-            this.label4 = new System.Windows.Forms.Label();
-            this.textBoxDeviceControlId = new System.Windows.Forms.TextBox();
-            this.buttonDeviceOn = new System.Windows.Forms.Button();
-            this.buttonDeviceOff = new System.Windows.Forms.Button();
             this.buttonTempSensors = new System.Windows.Forms.Button();
             this.timerTemperatureLogging = new System.Windows.Forms.Timer(this.components);
             this.buttonElectricityPrices = new System.Windows.Forms.Button();
             this.timerSpotPrices = new System.Windows.Forms.Timer(this.components);
             this.buttonSpotPriceControl = new System.Windows.Forms.Button();
-            this.comboBox1 = new System.Windows.Forms.ComboBox();
+            this.comboBoxIpAddressMode = new System.Windows.Forms.ComboBox();
             this.label5 = new System.Windows.Forms.Label();
             this.buttonStartMqttServer = new System.Windows.Forms.Button();
-            this.timerLogging = new System.Windows.Forms.Timer(this.components);
+            this.timerRuuvi = new System.Windows.Forms.Timer(this.components);
             this.buttonStartMqttClient = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
+            this.button1 = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // label1
@@ -107,7 +104,7 @@
             // 
             // buttonTemporaryPassword
             // 
-            this.buttonTemporaryPassword.Location = new System.Drawing.Point(503, 8);
+            this.buttonTemporaryPassword.Location = new System.Drawing.Point(422, 8);
             this.buttonTemporaryPassword.Name = "buttonTemporaryPassword";
             this.buttonTemporaryPassword.Size = new System.Drawing.Size(141, 23);
             this.buttonTemporaryPassword.TabIndex = 20;
@@ -199,43 +196,6 @@
             this.buttonGetLanIp.UseVisualStyleBackColor = true;
             this.buttonGetLanIp.Click += new System.EventHandler(this.buttonGetLanIp_Click);
             // 
-            // label4
-            // 
-            this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(13, 128);
-            this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(53, 13);
-            this.label4.TabIndex = 14;
-            this.label4.Text = "device id:";
-            // 
-            // textBoxDeviceControlId
-            // 
-            this.textBoxDeviceControlId.Location = new System.Drawing.Point(72, 125);
-            this.textBoxDeviceControlId.Name = "textBoxDeviceControlId";
-            this.textBoxDeviceControlId.Size = new System.Drawing.Size(100, 20);
-            this.textBoxDeviceControlId.TabIndex = 100;
-            this.textBoxDeviceControlId.Leave += new System.EventHandler(this.textBoxDeviceControlId_Leave);
-            // 
-            // buttonDeviceOn
-            // 
-            this.buttonDeviceOn.Location = new System.Drawing.Point(178, 123);
-            this.buttonDeviceOn.Name = "buttonDeviceOn";
-            this.buttonDeviceOn.Size = new System.Drawing.Size(75, 23);
-            this.buttonDeviceOn.TabIndex = 110;
-            this.buttonDeviceOn.Text = "ON";
-            this.buttonDeviceOn.UseVisualStyleBackColor = true;
-            this.buttonDeviceOn.Click += new System.EventHandler(this.buttonDeviceOn_Click);
-            // 
-            // buttonDeviceOff
-            // 
-            this.buttonDeviceOff.Location = new System.Drawing.Point(259, 122);
-            this.buttonDeviceOff.Name = "buttonDeviceOff";
-            this.buttonDeviceOff.Size = new System.Drawing.Size(75, 23);
-            this.buttonDeviceOff.TabIndex = 120;
-            this.buttonDeviceOff.Text = "OFF";
-            this.buttonDeviceOff.UseVisualStyleBackColor = true;
-            this.buttonDeviceOff.Click += new System.EventHandler(this.buttonDeviceOff_Click);
-            // 
             // buttonTempSensors
             // 
             this.buttonTempSensors.Location = new System.Drawing.Point(13, 210);
@@ -278,18 +238,17 @@
             this.buttonSpotPriceControl.UseVisualStyleBackColor = true;
             this.buttonSpotPriceControl.Click += new System.EventHandler(this.buttonSpotPriceControl_Click);
             // 
-            // comboBox1
+            // comboBoxIpAddressMode
             // 
-            this.comboBox1.FormattingEnabled = true;
-            this.comboBox1.Items.AddRange(new object[] {
-            "Automatic",
+            this.comboBoxIpAddressMode.FormattingEnabled = true;
+            this.comboBoxIpAddressMode.Items.AddRange(new object[] {
             "Local",
             "API"});
-            this.comboBox1.Location = new System.Drawing.Point(13, 267);
-            this.comboBox1.Name = "comboBox1";
-            this.comboBox1.Size = new System.Drawing.Size(121, 21);
-            this.comboBox1.TabIndex = 160;
-            this.comboBox1.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
+            this.comboBoxIpAddressMode.Location = new System.Drawing.Point(13, 267);
+            this.comboBoxIpAddressMode.Name = "comboBoxIpAddressMode";
+            this.comboBoxIpAddressMode.Size = new System.Drawing.Size(121, 21);
+            this.comboBoxIpAddressMode.TabIndex = 160;
+            this.comboBoxIpAddressMode.SelectedIndexChanged += new System.EventHandler(this.comboBoxIpAddressType_SelectedIndexChanged);
             // 
             // label5
             // 
@@ -310,10 +269,10 @@
             this.buttonStartMqttServer.UseVisualStyleBackColor = true;
             this.buttonStartMqttServer.Click += new System.EventHandler(this.buttonStartMqttServer_Click);
             // 
-            // timerLogging
+            // timerRuuvi
             // 
-            this.timerLogging.Interval = 700;
-            this.timerLogging.Tick += new System.EventHandler(this.timerLogging_Tick);
+            this.timerRuuvi.Interval = 700;
+            this.timerRuuvi.Tick += new System.EventHandler(this.timerRuuvi_Tick);
             // 
             // buttonStartMqttClient
             // 
@@ -335,23 +294,30 @@
             this.button3.UseVisualStyleBackColor = true;
             this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
+            // button1
+            // 
+            this.button1.Location = new System.Drawing.Point(364, 415);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(75, 23);
+            this.button1.TabIndex = 176;
+            this.button1.Text = "test...";
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 461);
+            this.Controls.Add(this.button1);
             this.Controls.Add(this.button3);
             this.Controls.Add(this.buttonStartMqttClient);
             this.Controls.Add(this.buttonStartMqttServer);
             this.Controls.Add(this.label5);
-            this.Controls.Add(this.comboBox1);
+            this.Controls.Add(this.comboBoxIpAddressMode);
             this.Controls.Add(this.buttonSpotPriceControl);
             this.Controls.Add(this.buttonElectricityPrices);
             this.Controls.Add(this.buttonTempSensors);
-            this.Controls.Add(this.buttonDeviceOff);
-            this.Controls.Add(this.buttonDeviceOn);
-            this.Controls.Add(this.textBoxDeviceControlId);
-            this.Controls.Add(this.label4);
             this.Controls.Add(this.buttonGetLanIp);
             this.Controls.Add(this.buttonGetApiVersion);
             this.Controls.Add(this.label3);
@@ -390,21 +356,18 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Button buttonGetApiVersion;
         private System.Windows.Forms.Button buttonGetLanIp;
-        private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.TextBox textBoxDeviceControlId;
-        private System.Windows.Forms.Button buttonDeviceOn;
-        private System.Windows.Forms.Button buttonDeviceOff;
         private System.Windows.Forms.Button buttonTempSensors;
         private System.Windows.Forms.Timer timerTemperatureLogging;
         private System.Windows.Forms.Button buttonElectricityPrices;
         private System.Windows.Forms.Timer timerSpotPrices;
         private System.Windows.Forms.Button buttonSpotPriceControl;
-        private System.Windows.Forms.ComboBox comboBox1;
+        private System.Windows.Forms.ComboBox comboBoxIpAddressMode;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.Button buttonStartMqttServer;
-        private System.Windows.Forms.Timer timerLogging;
+        private System.Windows.Forms.Timer timerRuuvi;
         private System.Windows.Forms.Button buttonStartMqttClient;
         private System.Windows.Forms.Button button3;
+        private System.Windows.Forms.Button button1;
     }
 }
 

@@ -18,6 +18,7 @@ using System.Windows.Forms;
 using MQTTnet.Diagnostics;
 using MQTTnet.Client;
 using System.Xml;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace CozifyWindows
 {
@@ -36,6 +37,7 @@ namespace CozifyWindows
         public static string email;
         public static string log_string;
         public static Queue<string> mqtt_payload = new Queue<string>();
+        public Dictionary<string, DateTime> ruuviSensorLastTouch;
 
         public Form1()
         {
@@ -172,23 +174,24 @@ namespace CozifyWindows
 
             deviceList = new List<Device>();
             spotPriceList = new List<SpotPrice>();
+            ruuviSensorLastTouch = new Dictionary<string, DateTime>();
 
+            var ip_address_mode = readSetting("ip_address_mode");
 
             int item_counter = 0;
-            foreach (var item in comboBox1.Items)
+            foreach (var item in comboBoxIpAddressMode.Items)
             {
-                if (item.ToString() == readSetting("ip_address_mode"))
+                if (item.ToString() == ip_address_mode)
                 {
-                    comboBox1.SelectedIndex = item_counter;
+                    comboBoxIpAddressMode.SelectedIndex = item_counter;
                 }
                 item_counter++;
             }
 
-            if (comboBox1.SelectedIndex == -1)
+            if (comboBoxIpAddressMode.SelectedIndex == -1)
             {
-                comboBox1.SelectedIndex = 0;
+                comboBoxIpAddressMode.SelectedIndex = 0;
             }
-
 
             var hubs = readSetting("hubs").Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var hubdata in hubs)
@@ -199,9 +202,7 @@ namespace CozifyWindows
 
             selectHub(readSetting("selected_hub"));
 
-
             bool autoclose = false;
-
 
             var device_id = getCommandArg("device_id");
             var action = getCommandArg("action");
@@ -247,17 +248,7 @@ namespace CozifyWindows
 
             }
 
-
-
-
-
-
-
-
-
             parseSpotPrices(readSetting("spot_price_list"));
-
-            textBoxDeviceControlId.Text = readSetting("selected_test_device");
 
             temperatureLogFile = Path.Combine(Application.StartupPath, "temperatures.txt");
 
@@ -273,6 +264,14 @@ namespace CozifyWindows
             if (temperature_log_seconds > 0)
             {
                 timerTemperatureLogging.Interval = temperature_log_seconds * 1000;
+            }
+
+            var ruuvisensors = readSetting("mqtt_topics");
+            //ruuvi/D7:10:FB:EB:57:D7
+            var broker = readSetting("mqtt_broker");
+            if (string.IsNullOrWhiteSpace(ruuvisensors) == false && string.IsNullOrWhiteSpace(broker) == false)
+            {
+                await StartMqttClient();
             }
         }
 
@@ -298,8 +297,12 @@ namespace CozifyWindows
                 saveSetting("token", token);
                 log("We have got token.");
                 textBoxPassword.Text = "";
+                await getDeviceList();
+                await getHubApiVersion();
+                await getDeviceList();
             }
         }
+
         public void log(string text)
         {
             if (textBoxLog.Text.Length > 60000)
@@ -318,10 +321,7 @@ namespace CozifyWindows
                 textBoxLog.AppendText("log exception: " + ex.ToString() + Environment.NewLine);
             }
             finally { }
-
         }
-
-
 
         private async void buttonTemporaryPassword_Click(object sender, EventArgs e)
         {
@@ -339,15 +339,7 @@ namespace CozifyWindows
                 string postData1 = postData;
                 byte[] data = encoding.GetBytes(postData1);
 
-                //            log("postdata:" + postData1);
-
                 HttpWebRequest req = WebRequest.Create(url) as HttpWebRequest;
-                //req.Headers.Add("X-Hub-Key", selected_hubkey);
-                //req.Headers.Add("Authorization", "Bearer " + Properties.Settings.Default.token);
-                //              log("selected hubkey:" + selected_hubkey);
-                //                req.Headers.Add("Authorization", selected_hubkey);
-
-
 
                 if (string.IsNullOrWhiteSpace(lan_ip) == false && url.Contains(lan_ip) == true)
                 {
@@ -359,8 +351,6 @@ namespace CozifyWindows
                     req.Headers.Add("X-Hub-Key", selected_hubkey);
                     req.Headers.Add("Authorization", "Bearer " + token);
                 }
-
-
 
                 req.PreAuthenticate = true;
                 req.Timeout = 1000;
@@ -404,8 +394,6 @@ namespace CozifyWindows
 
                 HttpWebRequest req = WebRequest.Create(url) as HttpWebRequest;
 
-
-
                 if (string.IsNullOrWhiteSpace(lan_ip) == false && string.IsNullOrWhiteSpace(lan_ip) == false && url.Contains(lan_ip) == true && string.IsNullOrWhiteSpace(selected_hubkey) == false)
                 {
                     req.Headers.Add("Authorization", selected_hubkey);
@@ -419,7 +407,6 @@ namespace CozifyWindows
                     var token = readSetting("token");
                     req.Headers.Add("Authorization", "Bearer " + token);
                 }
-
 
                 req.PreAuthenticate = true;
                 req.Timeout = 1000;
@@ -514,6 +501,7 @@ namespace CozifyWindows
             await getHubApiVersion();
             await getDeviceList();
         }
+
         private async Task getDeviceList()
         {
             deviceList = new List<Device>();
@@ -658,7 +646,7 @@ namespace CozifyWindows
 
             var ip_list = new List<string>();
 
-            if (comboBox1.SelectedItem.ToString() != "API")
+            if (comboBoxIpAddressMode.SelectedItem.ToString() != "API")
             {
                 ip_list = await getLanIpList();
             }
@@ -744,7 +732,18 @@ namespace CozifyWindows
             return ip_list;
 
         }
+
         private async Task<string> deviceON(string id)
+        {
+            return await deviceControl(id, true);
+        }
+
+        private async Task<string> deviceOFF(string id)
+        {
+            return await deviceControl(id, false);
+        }
+
+        private async Task<string> deviceControl(string id, bool DEVICE_ON)
         {
             if (listBox1.Items.Count == 0)
             {
@@ -755,7 +754,14 @@ namespace CozifyWindows
             {
                 await getHubApiVersion();
             }
-            string data = "[{\"id\":\"" + id + "\", \"type\": \"CMD_DEVICE_ON\"}]";
+
+            string device_cmd = "CMD_DEVICE_ON";
+            if (DEVICE_ON == false)
+            {
+                device_cmd = "CMD_DEVICE_OFF";
+            }
+
+            string data = "[{\"id\":\"" + id + "\", \"type\": \"" + device_cmd + "\"}]";
             string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
 
             if (string.IsNullOrWhiteSpace(lan_ip) == false)
@@ -764,35 +770,6 @@ namespace CozifyWindows
             }
             log("deviceON:" + id);
             return await HttpPost(url, data, "PUT");
-        }
-        private async Task<string> deviceOFF(string id)
-        {
-            if (listBox1.Items.Count == 0)
-            {
-                await getDeviceList();
-            }
-            if (string.IsNullOrWhiteSpace(api_version))
-            {
-                await getHubApiVersion();
-            }
-            string data = "[{\"id\":\"" + id + "\", \"type\": \"CMD_DEVICE_OFF\"}]";
-            string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
-
-            if (string.IsNullOrWhiteSpace(lan_ip) == false)
-            {
-                url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices/command";
-            }
-            log("deviceOFF:" + id);
-            return await HttpPost(url, data, "PUT");
-        }
-        private async void buttonDeviceOn_Click(object sender, EventArgs e)
-        {
-            await deviceON(textBoxDeviceControlId.Text);
-        }
-
-        private async void buttonDeviceOff_Click(object sender, EventArgs e)
-        {
-            await deviceOFF(textBoxDeviceControlId.Text);
         }
 
         private void buttonTempSensors_Click(object sender, EventArgs e)
@@ -810,6 +787,7 @@ namespace CozifyWindows
             }
 
             timerTemperatureLogging.Interval = temperature_log_seconds * 1000;
+
             var selected_temp_sensors_list = readSetting("selected_temp_sensors").Split('§');
 
             await getDeviceList();
@@ -832,7 +810,6 @@ namespace CozifyWindows
 
             }
 
-
             System.IO.File.AppendAllText(temperatureLogFile, sb.ToString());
 
             log("Writing temperature log.");
@@ -842,8 +819,6 @@ namespace CozifyWindows
         {
             return DateTime.Now.Year.ToString("0000") + "-" + DateTime.Now.Month.ToString("00") + "-" + DateTime.Now.Day.ToString("00") + " " + DateTime.Now.Hour.ToString("00") + ":" + DateTime.Now.Minute.ToString("00") + ":" + DateTime.Now.Second.ToString("00");
         }
-
-
 
         private void parseSpotPrices(string json)
         {
@@ -1010,21 +985,17 @@ namespace CozifyWindows
             form3.Show();
         }
 
-        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        private void comboBoxIpAddressType_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (readSetting("ip_address_mode") != comboBox1.SelectedItem.ToString())
+            if (readSetting("ip_address_mode") != comboBoxIpAddressMode.SelectedItem.ToString())
             {
-                saveSetting("ip_address_mode", comboBox1.SelectedItem.ToString());
+                saveSetting("ip_address_mode", comboBoxIpAddressMode.SelectedItem.ToString());
             }
         }
+
         private void textBoxEmail_Leave_1(object sender, EventArgs e)
         {
             saveEmail(textBoxEmail.Text);
-        }
-
-        private void textBoxDeviceControlId_Leave(object sender, EventArgs e)
-        {
-            saveSetting("selected_test_device", textBoxDeviceControlId.Text);
         }
 
         private void textBoxPassword_Leave(object sender, EventArgs e)
@@ -1047,10 +1018,10 @@ namespace CozifyWindows
         private async void buttonStartMqttServer_Click(object sender, EventArgs e)
         {
             await MQTTserver();
-            timerLogging.Enabled = true;
+            timerRuuvi.Enabled = true;
         }
 
-        private void timerLogging_Tick(object sender, EventArgs e)
+        private async void timerRuuvi_Tick(object sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(log_string) == false)
             {
@@ -1070,45 +1041,129 @@ namespace CozifyWindows
                 data = data.Substring(0, 4);
                 var z = Convert.ToInt16(data, 16);
                 double temperature = z * 0.005;
-              var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
+                var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
                 var data30 = data20[1].Split('"');
                 var unix = Convert.ToDouble(data30[0]);
-                var datetime = UnixTimeStampToDateTime(unix);
-                string timestamp = datetime.Year.ToString() + "-" + datetime.Month.ToString("00") + "-" + datetime.Day.ToString("00") + " " + datetime.Hour.ToString() + ":" + datetime.Minute.ToString("00") + ":" + datetime.Second.ToString("00");
+                var ruuvi_datetime = UnixTimeStampToDateTime(unix);
+                string timestamp = ruuvi_datetime.Year.ToString() + "-" + ruuvi_datetime.Month.ToString("00") + "-" + ruuvi_datetime.Day.ToString("00") + " " + ruuvi_datetime.Hour.ToString() + ":" + ruuvi_datetime.Minute.ToString("00") + ":" + ruuvi_datetime.Second.ToString("00");
                 log(@"Received payload
    timestamp: " + timestamp + @"
-   temperature: " + temperature+@"
-   sensor id: "+sensor_id);
+   temperature: " + temperature + @"
+   sensor id: " + sensor_id);
 
-            }        }
 
-        private async void buttonStartMqttClient_Click(object sender, EventArgs e)
+                var sensors_string = readSetting("mqtt_topics");
+
+                var sensors = sensors_string.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var sensor in sensors)
+                {
+                    string configuration_sensor = sensor;
+                    if (sensor.Contains("/") == true)
+                    {
+                        var dataArray = sensor.Split('/');
+                        configuration_sensor = dataArray[1];
+                    }
+                    configuration_sensor = configuration_sensor.Replace(":", "");
+                    configuration_sensor = configuration_sensor.ToUpper();
+
+                    if (configuration_sensor != sensor_id)
+                    {
+                        continue;
+                    }
+
+                    string do_not_touch_seconds_string = readSetting("ruuvitag" + sensor + "donottouch");
+
+                    if (int.TryParse(do_not_touch_seconds_string, out int do_not_touch_seconds) == false)
+                    {
+                        log("timerRuuvi_Tick error: unable to parse setting (" + "ruuvitag" + sensor + "donottouch) value (" + do_not_touch_seconds_string + ") to int");
+                        continue;
+                    }
+
+
+                    ruuviSensorLastTouch.TryGetValue(sensor, out DateTime last_touch);
+                    if (last_touch.AddSeconds(do_not_touch_seconds) > DateTime.Now)
+                    {
+                        continue;
+                    }
+
+                    var value1 = readSetting("ruuvitag" + sensor + "value1");
+
+
+                    var temperature_setting = readSetting("ruuvitag" + sensor + "temperature");
+                    var temperature_number = Convert.ToDouble(temperature_setting);
+
+                    var selectedDevice = readSetting("ruuvitag" + sensor + "device");
+
+                    var deviceAction = readSetting("ruuvitag" + sensor + "deviceaction");
+
+                    if (value1 == "<")
+                    {
+                        if (temperature_number > temperature)
+                        {
+                            if (deviceAction == "ON")
+                            {
+                                await deviceON(selectedDevice);
+                            }
+                            if (deviceAction == "OFF")
+                            {
+                                await deviceOFF(selectedDevice);
+                            }
+                        }
+                    }
+                    if (value1 == ">")
+                    {
+                        if (temperature_number < temperature)
+                        {
+                            if (deviceAction == "ON")
+                            {
+                                await deviceON(selectedDevice);
+                            }
+                            if (deviceAction == "OFF")
+                            {
+                                await deviceOFF(selectedDevice);
+                            }
+                        }
+                    }
+
+                    if (ruuviSensorLastTouch.ContainsKey(sensor))
+                    {
+                        ruuviSensorLastTouch.Remove(sensor);
+                    }
+
+                    ruuviSensorLastTouch.Add(sensor, DateTime.Now);
+                }
+            }
+        }
+
+        public async Task StartMqttClient()
         {
-            timerLogging.Enabled = true;
+            timerRuuvi.Enabled = true;
 
             //var mqttFactory = new MqttFactory(new ConsoleLogger());
             var mqttFactory = new MqttFactory();
 
-var broker=            readSetting("mqtt_broker");
-            if(string.IsNullOrWhiteSpace(broker) == true)
+            var broker = readSetting("mqtt_broker");
+            if (string.IsNullOrWhiteSpace(broker) == true)
             {
                 MessageBox.Show("missing configuration: mqtt server address");
                 return;
             }
             int? broker_port = null;
             var broker_address = broker;
-            if (broker.Contains(":")) {
+            if (broker.Contains(":"))
+            {
                 var splitted = broker.Split(':');
-                broker_address = splitted[0]    ;
-                if (int.TryParse(splitted[1],out int port_number) == true)
+                broker_address = splitted[0];
+                if (int.TryParse(splitted[1], out int port_number) == true)
                 {
-                    broker_port=port_number; 
+                    broker_port = port_number;
                 }
             }
             var mqttClient = mqttFactory.CreateMqttClient();
             var mqttClientOptions = new MqttClientOptionsBuilder()
-                .WithTcpServer(broker_address,broker_port)
+                .WithTcpServer(broker_address, broker_port)
                 .Build();
+
             mqttClient.ApplicationMessageReceivedAsync += ee =>
             {
                 if (string.IsNullOrWhiteSpace(log_string))
@@ -1130,7 +1185,7 @@ var broker=            readSetting("mqtt_broker");
             var ruuvisensors = readSetting("mqtt_topics");
 
             var sensors = ruuvisensors.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-            foreach(var sensor in sensors)
+            foreach (var sensor in sensors)
             {
                 var mqttSubscribeOptions = mqttFactory.CreateSubscribeOptionsBuilder()
                 .WithTopicFilter(
@@ -1142,7 +1197,11 @@ var broker=            readSetting("mqtt_broker");
 
                 var response = await mqttClient.SubscribeAsync(mqttSubscribeOptions, CancellationToken.None);
             }
-            
+        }
+
+        private async void buttonStartMqttClient_Click(object sender, EventArgs e)
+        {
+            await StartMqttClient();
         }
 
         public static DateTime UnixTimeStampToDateTime(double unixTimeStamp)
@@ -1157,6 +1216,37 @@ var broker=            readSetting("mqtt_broker");
         {
             var formRuuvi = new FormRuuvi();
             formRuuvi.Show();
+        }
+
+        private async void button1_Click(object sender, EventArgs e)
+        {
+            string id = "1";
+
+            if (listBox1.Items.Count == 0)
+            {
+                await getDeviceList();
+            }
+
+            if (string.IsNullOrWhiteSpace(api_version))
+            {
+                await getHubApiVersion();
+            }
+            bool DEVICE_ON = true;
+            string device_cmd = "CMD_DEVICE_ON";
+            if (DEVICE_ON == false)
+            {
+                device_cmd = "CMD_DEVICE_OFF";
+            }
+
+            string data = "[{\"id\":\"" + id + "\", \"type\": \"" + device_cmd + "\"}]";
+            string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
+
+            if (string.IsNullOrWhiteSpace(lan_ip) == false)
+            {
+                url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices/command";
+            }
+            log("deviceON:" + id);
+            await HttpPost(url, data, "PUT");
         }
     }
     class ConsoleLogger : IMqttNetLogger
@@ -1190,6 +1280,7 @@ var broker=            readSetting("mqtt_broker");
         public string type { get; set; }
         public string[] capabilities { get; set; }
     }
+
     public class SpotPrice
     {
         public int rank { get; set; }
