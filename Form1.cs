@@ -19,13 +19,14 @@ using MQTTnet.Diagnostics;
 using MQTTnet.Client;
 using System.Xml;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
 namespace CozifyWindows
 {
     public partial class Form1 : Form
     {
-        const string dataSeparator = "§'.'§";
-        const string linefeed = "-§linefeed§-";
+        public const string dataSeparator = "§'.'§";
+        public const string linefeed = "-§linefeed§-";
         private string selected_hubkey;
         private string lan_ip;
         private string api_version;
@@ -33,11 +34,16 @@ namespace CozifyWindows
         public static string temperatureLogFile;
         public static int temperature_log_seconds;
         public static List<SpotPrice> spotPriceList;
-        private static string settingsfile;
+        public static string settingsfile;
         public static string email;
         public static string log_string;
         public static Queue<string> mqtt_payload = new Queue<string>();
         public Dictionary<string, DateTime> ruuviSensorLastTouch;
+        public DateTime lastTemperatureLogTime;
+        public Dictionary<string, DateTime> lastSpotPriceExecute = new Dictionary<string, DateTime>();
+        private DateTime lastLogFileCheck;
+        private string logfile;
+        private Dictionary<string, string> deviceLastStatus = new Dictionary<string, string>();
 
         public Form1()
         {
@@ -161,6 +167,9 @@ namespace CozifyWindows
         {
             timer1.Enabled = false;
 
+            logfile = Path.Combine(Application.StartupPath, "log.txt");
+            lastLogFileCheck = DateTime.MinValue;
+
             email = getEmail();
 
             if (string.IsNullOrWhiteSpace(email) == true)
@@ -259,12 +268,7 @@ namespace CozifyWindows
             }
 
             var temperature_log_seconds_string = readSetting("temperature_log_seconds");
-            int.TryParse(temperature_log_seconds_string, out int temperature_log_seconds);
-
-            if (temperature_log_seconds > 0)
-            {
-                timerTemperatureLogging.Interval = temperature_log_seconds * 1000;
-            }
+            int.TryParse(temperature_log_seconds_string, out temperature_log_seconds);
 
             var ruuvisensors = readSetting("mqtt_topics");
             //ruuvi/D7:10:FB:EB:57:D7
@@ -273,6 +277,8 @@ namespace CozifyWindows
             {
                 await StartMqttClient();
             }
+
+            timer2.Enabled = true;
         }
 
         public string getCommandArg(string key)
@@ -303,15 +309,14 @@ namespace CozifyWindows
             }
         }
 
-        public void log(string text)
+        public void log(string text, bool printScreen = true)
         {
-            if (textBoxLog.Text.Length > 60000)
-            {
-                textBoxLog.Text = textBoxLog.Text.Substring(50000);
-            }
             string logline = DateTime.Now.ToString() + " : " + text + Environment.NewLine;
-            textBoxLog.AppendText(logline);
-            string logfile = Path.Combine(Application.StartupPath, "log.txt");
+            if (printScreen)
+            {
+                textBoxLog.AppendText(logline);
+            }
+
             try
             {
                 System.IO.File.AppendAllText(logfile, logline);
@@ -321,6 +326,28 @@ namespace CozifyWindows
                 textBoxLog.AppendText("log exception: " + ex.ToString() + Environment.NewLine);
             }
             finally { }
+
+            //truncate log file
+            if (lastLogFileCheck < DateTime.Now.AddHours(-1))
+            {
+                var fi = new FileInfo(logfile);
+                if (fi.Length > 100 * 1024 * 1024)
+                {
+                    var old_logfile = logfile + ".old";
+                    if (File.Exists(old_logfile))
+                    {
+                        File.Delete(old_logfile);
+                    }
+                    File.Move(logfile, old_logfile);
+                    lastLogFileCheck = DateTime.Now;
+                }
+
+                if (textBoxLog.Text.Length > 60000)
+                {
+                    textBoxLog.Text = textBoxLog.Text.Substring(50000);
+                }
+            }
+
         }
 
         private async void buttonTemporaryPassword_Click(object sender, EventArgs e)
@@ -334,7 +361,7 @@ namespace CozifyWindows
         {
             try
             {
-                log("HttpPost " + url);
+                log("HttpPost " + url, false);
                 UTF8Encoding encoding = new UTF8Encoding();
                 string postData1 = postData;
                 byte[] data = encoding.GetBytes(postData1);
@@ -372,7 +399,8 @@ namespace CozifyWindows
                 {
                     result = "[OK]";
                 }
-                log("HttpPost result: " + result);
+
+                log("HttpPost result: " + result, false);
                 return result;
             }
             catch (Exception ex)
@@ -389,7 +417,7 @@ namespace CozifyWindows
         {
             try
             {
-                log("HttpGet " + url);
+                log("HttpGet " + url, false);
                 UTF8Encoding encoding = new UTF8Encoding();
 
                 HttpWebRequest req = WebRequest.Create(url) as HttpWebRequest;
@@ -433,7 +461,7 @@ namespace CozifyWindows
                 {
                     result = "[OK]";
                 }
-                log("HttpGet result: " + result);
+                log("HttpGet result: " + result, false);
                 return result;
             }
             catch (Exception ex)
@@ -761,14 +789,30 @@ namespace CozifyWindows
                 device_cmd = "CMD_DEVICE_OFF";
             }
 
-            string data = "[{\"id\":\"" + id + "\", \"type\": \"" + device_cmd + "\"}]";
+            string data = "[{\"id\":\"" + id + "\",\"type\":\"" + device_cmd + "\"}]";
             string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
 
             if (string.IsNullOrWhiteSpace(lan_ip) == false)
             {
                 url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices/command";
             }
-            log("deviceON:" + id);
+
+            log("deviceControl: " + device_cmd + ": " + id);
+
+            string device_name = id;
+            var q = (from c1 in deviceList where c1.id == id select c1).FirstOrDefault();
+            if (q != null)
+            {
+                device_name = q.name;
+            }
+
+            deviceLastStatus.TryGetValue(id, out string laststatus);
+            if (laststatus != device_cmd)
+            {
+                sendmail("cozifywindows device " + device_name + " " + device_cmd, "cozifywindows device " + device_name + " " + device_cmd);
+                deviceLastStatus.Remove(id);
+                deviceLastStatus.Add(id, device_cmd);
+            }
             return await HttpPost(url, data, "PUT");
         }
 
@@ -778,46 +822,13 @@ namespace CozifyWindows
             form2.Show();
         }
 
-        private async void timerTemperatureLogging_Tick(object sender, EventArgs e)
+        private string dateString(DateTime? date1 = null)
         {
-            if (temperature_log_seconds == 0)
+            if (date1 == null)
             {
-                timerTemperatureLogging.Interval = 1000;
-                return;
+                date1 = DateTime.Now;
             }
-
-            timerTemperatureLogging.Interval = temperature_log_seconds * 1000;
-
-            var selected_temp_sensors_list = readSetting("selected_temp_sensors").Split('§');
-
-            await getDeviceList();
-
-            string date = dateString();
-
-            var sb = new StringBuilder();
-
-            foreach (var sensor in selected_temp_sensors_list)
-            {
-                if (string.IsNullOrWhiteSpace(sensor) == true)
-                {
-                    continue;
-                }
-                var dev = (from c1 in deviceList where c1.name == sensor select c1).FirstOrDefault();
-                if (dev != null && dev.temperature.HasValue)
-                {
-                    sb.AppendLine(date + "\t" + dev.name + "\t" + dev.temperature.ToString());
-                }
-
-            }
-
-            System.IO.File.AppendAllText(temperatureLogFile, sb.ToString());
-
-            log("Writing temperature log.");
-        }
-
-        private string dateString()
-        {
-            return DateTime.Now.Year.ToString("0000") + "-" + DateTime.Now.Month.ToString("00") + "-" + DateTime.Now.Day.ToString("00") + " " + DateTime.Now.Hour.ToString("00") + ":" + DateTime.Now.Minute.ToString("00") + ":" + DateTime.Now.Second.ToString("00");
+            return date1.Value.Year.ToString("0000") + "-" + date1.Value.Month.ToString("00") + "-" + date1.Value.Day.ToString("00") + " " + date1.Value.Hour.ToString("00") + ":" + date1.Value.Minute.ToString("00") + ":" + date1.Value.Second.ToString("00");
         }
 
         private void parseSpotPrices(string json)
@@ -855,128 +866,6 @@ namespace CozifyWindows
         {
             var prices = downloadSpotPrices();
             parseSpotPrices(prices);
-        }
-
-        private async void timerSpotPrices_Tick(object sender, EventArgs e)
-        {
-            var timer_spot_price_seconds_string = readSetting("timer_spot_price_seconds");
-
-            int.TryParse(timer_spot_price_seconds_string, out int timer_spot_price_seconds);
-            if (timer_spot_price_seconds == 0)
-            {
-                return;
-            }
-
-            var spot_price_controlled_devices = readSetting("spot_price_controlled_devices");
-            if (string.IsNullOrWhiteSpace(spot_price_controlled_devices))
-            {
-                return;
-            }
-
-            timerSpotPrices.Enabled = false;
-
-            timerSpotPrices.Interval = timer_spot_price_seconds * 1000;
-
-            var spot_device_list = spot_price_controlled_devices.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-
-
-            foreach (var row in spot_device_list)
-            {
-                if (string.IsNullOrWhiteSpace(row) == true)
-                {
-                    continue;
-                }
-
-                var data = row.Split(new string[] { dataSeparator }, StringSplitOptions.None);
-                var devicename = data[0];
-
-                var cheapesthours = 0;
-                double maxprice = 0;
-
-                if (string.IsNullOrWhiteSpace(data[1]) == false)
-                {
-                    cheapesthours = Convert.ToInt32(data[1]);
-                }
-
-                if (string.IsNullOrWhiteSpace(data[2]) == false)
-                {
-                    maxprice = Convert.ToDouble(data[2]);
-                    maxprice = maxprice / 100;
-                }
-
-                if (maxprice <= 0 && cheapesthours <= 0)
-                {
-                    continue;
-                }
-
-                var dev = (from c1 in deviceList where c1.name == devicename select c1).FirstOrDefault();
-                if (dev != null && dev.type == "POWER_SOCKET")
-                {
-                    var spotquery = (from c1 in spotPriceList
-                                     where
-                                     c1.date.Year == DateTime.Now.Year
-                                     && c1.date.Month == DateTime.Now.Month
-                                     && c1.date.Day == DateTime.Now.Day
-                                     && c1.date.Hour == DateTime.Now.Hour
-                                     select c1).FirstOrDefault();
-
-                    if (spotquery == null)
-                    {
-                        var prices = downloadSpotPrices();
-                        parseSpotPrices(prices);
-                        timerSpotPrices.Enabled = true;
-                        return;
-                    }
-
-                    bool turnOffByCheapestHours = false;
-                    bool turnOffByPrice = false;
-
-                    if (cheapesthours > 0)
-                    {
-                        if (spotquery.rank > cheapesthours)
-                        {
-                            turnOffByCheapestHours = true;
-                        }
-                    }
-                    if (maxprice > 0)
-                    {
-                        if (spotquery.PriceWithTax > maxprice)
-                        {
-                            turnOffByPrice = true;
-                        }
-                    }
-                    if (turnOffByCheapestHours)
-                    {
-                        log("Turn device [" + dev.name + "] off based on spot rank [" + spotquery.rank.ToString() + "]");
-                    }
-
-                    if (turnOffByPrice)
-                    {
-                        log("Turn device [" + dev.name + "] off based on spot price [" + spotquery.PriceWithTax.ToString() + "]");
-                    }
-
-
-                    if (turnOffByCheapestHours || turnOffByPrice)
-                    {
-                        await deviceOFF(dev.id);
-                    }
-                    else
-                    {
-                        log("Turn device [" + dev.name + "] on.");
-                        if (maxprice > 0)
-                        {
-                            log("Turn device [" + dev.name + "] on based on spot price [" + spotquery.PriceWithTax.ToString() + "]");
-                        }
-                        if (cheapesthours > 0)
-                        {
-                            log("Turn device [" + dev.name + "] on based on spot rank [" + spotquery.rank.ToString() + "]");
-                        }
-                        await deviceON(dev.id);
-                    }
-                }
-            }
-
-            timerSpotPrices.Enabled = true;
         }
 
         private void buttonSpotPriceControl_Click(object sender, EventArgs e)
@@ -1018,126 +907,10 @@ namespace CozifyWindows
         private async void buttonStartMqttServer_Click(object sender, EventArgs e)
         {
             await MQTTserver();
-            timerRuuvi.Enabled = true;
-        }
-
-        private async void timerRuuvi_Tick(object sender, EventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(log_string) == false)
-            {
-                log(log_string);
-                log_string = "";
-            }
-
-            while (mqtt_payload.Count > 0)
-            {
-                var item = mqtt_payload.Dequeue();
-                var data1 = item.Split('}');
-                var data2 = data1[0].Split(new string[] { "\"data\":\t\"" }, StringSplitOptions.None);
-                var data3 = data2[1].Split('"');
-                var y = data3[0];
-                var data = y.Replace("0201061BFF990405", "");
-                var sensor_id = data.Substring(34);
-                data = data.Substring(0, 4);
-                var z = Convert.ToInt16(data, 16);
-                double temperature = z * 0.005;
-                var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
-                var data30 = data20[1].Split('"');
-                var unix = Convert.ToDouble(data30[0]);
-                var ruuvi_datetime = UnixTimeStampToDateTime(unix);
-                string timestamp = ruuvi_datetime.Year.ToString() + "-" + ruuvi_datetime.Month.ToString("00") + "-" + ruuvi_datetime.Day.ToString("00") + " " + ruuvi_datetime.Hour.ToString() + ":" + ruuvi_datetime.Minute.ToString("00") + ":" + ruuvi_datetime.Second.ToString("00");
-                log(@"Received payload
-   timestamp: " + timestamp + @"
-   temperature: " + temperature + @"
-   sensor id: " + sensor_id);
-
-
-                var sensors_string = readSetting("mqtt_topics");
-
-                var sensors = sensors_string.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var sensor in sensors)
-                {
-                    string configuration_sensor = sensor;
-                    if (sensor.Contains("/") == true)
-                    {
-                        var dataArray = sensor.Split('/');
-                        configuration_sensor = dataArray[1];
-                    }
-                    configuration_sensor = configuration_sensor.Replace(":", "");
-                    configuration_sensor = configuration_sensor.ToUpper();
-
-                    if (configuration_sensor != sensor_id)
-                    {
-                        continue;
-                    }
-
-                    string do_not_touch_seconds_string = readSetting("ruuvitag" + sensor + "donottouch");
-
-                    if (int.TryParse(do_not_touch_seconds_string, out int do_not_touch_seconds) == false)
-                    {
-                        log("timerRuuvi_Tick error: unable to parse setting (" + "ruuvitag" + sensor + "donottouch) value (" + do_not_touch_seconds_string + ") to int");
-                        continue;
-                    }
-
-
-                    ruuviSensorLastTouch.TryGetValue(sensor, out DateTime last_touch);
-                    if (last_touch.AddSeconds(do_not_touch_seconds) > DateTime.Now)
-                    {
-                        continue;
-                    }
-
-                    var value1 = readSetting("ruuvitag" + sensor + "value1");
-
-
-                    var temperature_setting = readSetting("ruuvitag" + sensor + "temperature");
-                    var temperature_number = Convert.ToDouble(temperature_setting);
-
-                    var selectedDevice = readSetting("ruuvitag" + sensor + "device");
-
-                    var deviceAction = readSetting("ruuvitag" + sensor + "deviceaction");
-
-                    if (value1 == "<")
-                    {
-                        if (temperature_number > temperature)
-                        {
-                            if (deviceAction == "ON")
-                            {
-                                await deviceON(selectedDevice);
-                            }
-                            if (deviceAction == "OFF")
-                            {
-                                await deviceOFF(selectedDevice);
-                            }
-                        }
-                    }
-                    if (value1 == ">")
-                    {
-                        if (temperature_number < temperature)
-                        {
-                            if (deviceAction == "ON")
-                            {
-                                await deviceON(selectedDevice);
-                            }
-                            if (deviceAction == "OFF")
-                            {
-                                await deviceOFF(selectedDevice);
-                            }
-                        }
-                    }
-
-                    if (ruuviSensorLastTouch.ContainsKey(sensor))
-                    {
-                        ruuviSensorLastTouch.Remove(sensor);
-                    }
-
-                    ruuviSensorLastTouch.Add(sensor, DateTime.Now);
-                }
-            }
         }
 
         public async Task StartMqttClient()
         {
-            timerRuuvi.Enabled = true;
 
             //var mqttFactory = new MqttFactory(new ConsoleLogger());
             var mqttFactory = new MqttFactory();
@@ -1233,12 +1006,13 @@ namespace CozifyWindows
             }
             bool DEVICE_ON = true;
             string device_cmd = "CMD_DEVICE_ON";
+
             if (DEVICE_ON == false)
             {
                 device_cmd = "CMD_DEVICE_OFF";
             }
 
-            string data = "[{\"id\":\"" + id + "\", \"type\": \"" + device_cmd + "\"}]";
+            string data = "[{\"id\":\"" + id + "\",\"type\":\"" + device_cmd + "\"}]";
             string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
 
             if (string.IsNullOrWhiteSpace(lan_ip) == false)
@@ -1247,6 +1021,459 @@ namespace CozifyWindows
             }
             log("deviceON:" + id);
             await HttpPost(url, data, "PUT");
+        }
+
+        private async void timer2_Tick(object sender, EventArgs e)
+        {
+            timer2.Enabled = false;
+
+            //temperature logging
+            if (temperature_log_seconds != 0 && lastTemperatureLogTime < DateTime.Now.AddSeconds(temperature_log_seconds * -1))
+            {
+                var selected_temp_sensors_list = readSetting("selected_temp_sensors").Split('§');
+
+                await getDeviceList();
+
+                string date = dateString();
+
+                var sb = new StringBuilder();
+
+                foreach (var sensor in selected_temp_sensors_list)
+                {
+                    if (string.IsNullOrWhiteSpace(sensor) == true)
+                    {
+                        continue;
+                    }
+                    var dev = (from c1 in deviceList where c1.id == sensor select c1).FirstOrDefault();
+                    if (dev != null && dev.temperature.HasValue)
+                    {
+                        var last_seen = Convert.ToDouble(dev.lastSeen);
+                        last_seen = last_seen / 1000;
+                        var last_seen_date_utc = UnixTimeStampToDateTime(last_seen);
+                        var last_seen_date_local = last_seen_date_utc.ToLocalTime();
+                        var last_seen_datetime_string = dateString(last_seen_date_utc);
+                        sb.AppendLine(date + "\t" + dev.id + "\t" + last_seen_datetime_string + "\t" + dev.temperature.ToString() + "\t" + dev.name);
+                    }
+                }
+
+                System.IO.File.AppendAllText(temperatureLogFile, sb.ToString());
+
+                log("Writing temperature log." + sb.ToString());
+                lastTemperatureLogTime = DateTime.Now;
+            }
+
+
+
+
+            //spot prices
+
+            var spot_price_controlled_devices = readSetting("spot_price_controlled_devices");
+
+            var spot_device_list = spot_price_controlled_devices.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var row in spot_device_list)
+            {
+                if (string.IsNullOrWhiteSpace(row) == true)
+                {
+                    continue;
+                }
+
+                var data = row.Split(new string[] { dataSeparator }, StringSplitOptions.None);
+                var device_id = data[0];
+
+                var cheapesthours = 0;
+                double maxprice = 0;
+                string timer_spot_price_seconds_string = "60";
+                try
+                {
+                    timer_spot_price_seconds_string = data[3];
+                }
+                catch { }
+                finally { }
+
+                int.TryParse(timer_spot_price_seconds_string, out int timer_spot_price_seconds);
+
+
+                if (timer_spot_price_seconds == 0)
+                {
+                    continue;
+                }
+
+                lastSpotPriceExecute.TryGetValue(device_id, out DateTime lastSpotPriceExecuteTime);
+
+
+                if (lastSpotPriceExecuteTime > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                {
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(spot_price_controlled_devices))
+                {
+                    continue;
+                }
+
+
+                if (string.IsNullOrWhiteSpace(data[1]) == false)
+                {
+                    cheapesthours = Convert.ToInt32(data[1]);
+                }
+
+                if (string.IsNullOrWhiteSpace(data[2]) == false)
+                {
+                    maxprice = Convert.ToDouble(data[2]);
+                    maxprice = maxprice / 100;
+                }
+
+                if (maxprice <= 0 && cheapesthours <= 0)
+                {
+                    continue;
+                }
+
+                var dev = (from c1 in deviceList where c1.id == device_id select c1).FirstOrDefault();
+
+                if (dev == null)
+                {
+                    continue;
+                }
+
+                if (dev.type == "POWER_SOCKET")
+                {
+                    var spotquery = (from c1 in spotPriceList
+                                     where
+                                     c1.date.Year == DateTime.Now.Year
+                                     && c1.date.Month == DateTime.Now.Month
+                                     && c1.date.Day == DateTime.Now.Day
+                                     && c1.date.Hour == DateTime.Now.Hour
+                                     select c1).FirstOrDefault();
+
+                    if (spotquery == null)
+                    {
+                        var prices = downloadSpotPrices();
+                        parseSpotPrices(prices);
+                        continue;
+                    }
+
+
+                    log("spot PriceWithTax:" + spotquery.PriceWithTax.ToString());
+                    log("maxprice:" + maxprice.ToString());
+                    log("spot price rank:" + spotquery.rank.ToString());
+                    log("cheapset hours:" + cheapesthours.ToString());
+
+
+                    bool turnOffByCheapestHours = false;
+                    bool turnOffByPrice = false;
+
+                    if (cheapesthours > 0)
+                    {
+                        if (spotquery.rank > cheapesthours)
+                        {
+
+                            turnOffByCheapestHours = true;
+                        }
+                    }
+                    else
+                    {
+                        turnOffByCheapestHours = true;
+                    }
+
+                    if (maxprice > 0)
+                    {
+                        if (spotquery.PriceWithTax > maxprice)
+                        {
+
+                            turnOffByPrice = true;
+                        }
+                    }
+                    else
+                    {
+                        turnOffByPrice = true;
+                    }
+
+
+                    if (turnOffByCheapestHours && turnOffByPrice)
+                    {
+                        if (turnOffByCheapestHours)
+                        {
+                            log("Turn device [" + dev.name + "] off based on spot rank [" + spotquery.rank.ToString() + "]");
+                        }
+
+                        if (turnOffByPrice)
+                        {
+                            log("Turn device [" + dev.name + "] off based on spot price [" + spotquery.PriceWithTax.ToString() + "]");
+                        }
+
+                        await deviceOFF(dev.id);
+                    }
+                    else
+                    {
+                        log("Turn device [" + dev.name + "] on.");
+                        if (maxprice > 0)
+                        {
+                            log("Turn device [" + dev.name + "] on based on spot price [" + spotquery.PriceWithTax.ToString() + "]");
+                        }
+                        if (cheapesthours > 0)
+                        {
+                            log("Turn device [" + dev.name + "] on based on spot rank [" + spotquery.rank.ToString() + "]");
+                        }
+                        await deviceON(dev.id);
+                    }
+                }
+
+                lastSpotPriceExecute.Remove(device_id);
+
+                lastSpotPriceExecute.Add(device_id, DateTime.Now);
+            }
+
+
+
+            //ruuvi
+            if (string.IsNullOrWhiteSpace(log_string) == false)
+            {
+                log(log_string, false);
+                log_string = "";
+            }
+
+            while (mqtt_payload.Count > 0)
+            {
+                var item = mqtt_payload.Dequeue();
+                var data1 = item.Split('}');
+                var data2 = data1[0].Split(new string[] { "\"data\":\t\"" }, StringSplitOptions.None);
+                var data3 = data2[1].Split('"');
+                var y = data3[0];
+                var data = y.Replace("0201061BFF990405", "");
+                var sensor_id = data.Substring(34);
+                data = data.Substring(0, 4);
+                var z = Convert.ToInt16(data, 16);
+                double temperature = z * 0.005;
+                var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
+                var data30 = data20[1].Split('"');
+                var unix = Convert.ToDouble(data30[0]);
+                var ruuvi_datetime = UnixTimeStampToDateTime(unix);
+                string timestamp = ruuvi_datetime.Year.ToString() + "-" + ruuvi_datetime.Month.ToString("00") + "-" + ruuvi_datetime.Day.ToString("00") + " " + ruuvi_datetime.Hour.ToString() + ":" + ruuvi_datetime.Minute.ToString("00") + ":" + ruuvi_datetime.Second.ToString("00");
+                log(@"Received payload
+   timestamp: " + timestamp + @"
+   temperature: " + temperature + @"
+   sensor id: " + sensor_id, false);
+
+                //  log("Received MQTT message " + sensor_id);
+
+
+                var sensors_string = readSetting("mqtt_topics");
+
+                var sensors = sensors_string.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var sensor in sensors)
+                {
+                    string configuration_sensor = sensor;
+                    if (sensor.Contains("/") == true)
+                    {
+                        var dataArray = sensor.Split('/');
+                        configuration_sensor = dataArray[1];
+                    }
+                    configuration_sensor = configuration_sensor.Replace(":", "");
+                    configuration_sensor = configuration_sensor.ToUpper();
+
+                    if (configuration_sensor != sensor_id)
+                    {
+                        continue;
+                    }
+
+                    string rules_data = readSetting("ruuvitag_" + sensor + "_RULES");
+
+                    if (string.IsNullOrWhiteSpace(rules_data) == true)
+                    {
+                        continue;
+                    }
+                    var rules = rules_data.Split(new string[] { dataSeparator }, StringSplitOptions.RemoveEmptyEntries);
+
+                    foreach (var rule in rules)
+                    {
+                        string settingname = "ruuvitag_" + sensor + "_" + rule + "_";
+                        string do_not_touch_seconds_string = readSetting(settingname + "donottouch");
+                        if (int.TryParse(do_not_touch_seconds_string, out int do_not_touch_seconds) == false)
+                        {
+                            log("timer2_Tick ruuvi error: unable to parse setting (" + settingname + "donottouch) value (" + do_not_touch_seconds_string + ") to int");
+                            continue;
+                        }
+
+                        ruuviSensorLastTouch.TryGetValue(settingname, out DateTime last_touch);
+
+
+                        if (last_touch.AddSeconds(do_not_touch_seconds) > DateTime.Now)
+                        {
+                            //                            log("timer2_Tick ruuvi skip rule because last touch was " + dateString(last_touch));
+                            continue;
+                        }
+
+                        var value1 = readSetting(settingname + "value1");
+
+
+                        var temperature_setting = readSetting(settingname + "temperature");
+                        var temperature_number = Convert.ToDouble(temperature_setting);
+
+                        var selectedDevice = readSetting(settingname + "device");
+                        var deviceAction = readSetting(settingname + "deviceaction");
+
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Monday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "MO")))
+                            {
+                                continue;
+                            }
+                        }
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Tuesday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "TU")))
+                            {
+                                continue;
+                            }
+                        }
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Wednesday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "WE")))
+                            {
+                                continue;
+                            }
+                        }
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Thursday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "TH")))
+                            {
+                                continue;
+                            }
+                        }
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Friday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "FR")))
+                            {
+                                continue;
+                            }
+                        }
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Saturday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "SA")))
+                            {
+                                continue;
+                            }
+                        }
+                        if (DateTime.Now.DayOfWeek == DayOfWeek.Sunday)
+                        {
+                            if (string.IsNullOrWhiteSpace(readSetting(settingname + "SU")))
+                            {
+                                continue;
+                            }
+                        }
+
+                        var timestart = readSetting(settingname + "timestart");
+
+
+
+                        var datasplit_start = timestart.Split(':');
+
+
+                        DateTime d1 = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day,
+                         Convert.ToInt32(datasplit_start[0]),
+                        Convert.ToInt32(datasplit_start[1]),
+                        0);
+
+
+                        if (DateTime.Now < d1)
+                        {
+                            continue;
+                        }
+
+                        var timeend = Form1.readSetting(settingname + "timeend");
+                        var datasplit_end = timeend.Split(':');
+
+                        var end_hour = Convert.ToInt32(datasplit_end[0]);
+                        DateTime d2 = DateTime.MaxValue;
+                        if (end_hour < 24)
+                        {
+                            d2 = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day,
+                              end_hour,
+                             Convert.ToInt32(datasplit_end[1]),
+                             0);
+                        }
+
+                        if (DateTime.Now > d2)
+                        {
+                            continue;
+                        }
+
+                        if (value1 == "<")
+                        {
+                            if (temperature_number > temperature)
+                            {
+                                if (deviceAction == "ON")
+                                {
+                                    log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") on. temp:" + temperature.ToString());
+                                    await deviceON(selectedDevice);
+                                }
+                                if (deviceAction == "OFF")
+                                {
+                                    log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") off. temp:" + temperature.ToString());
+                                    await deviceOFF(selectedDevice);
+                                }
+                            }
+                        }
+                        if (value1 == ">")
+                        {
+                            if (temperature_number < temperature)
+                            {
+
+                                if (deviceAction == "ON")
+                                {
+                                    log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") on. temp:" + temperature.ToString());
+                                    await deviceON(selectedDevice);
+                                }
+                                if (deviceAction == "OFF")
+                                {
+                                    log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") off. temp:" + temperature.ToString());
+                                    await deviceOFF(selectedDevice);
+                                }
+                            }
+                        }
+
+                        ruuviSensorLastTouch.Remove(settingname);
+
+                        ruuviSensorLastTouch.Add(settingname, DateTime.Now);
+                    }
+                }
+            }//end of while (mqtt_payload.Count > 0)
+
+            //end of timers
+
+            timer2.Enabled = true;
+        }
+
+        private void buttonOpenDevicesForm_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void Form1_Resize(object sender, EventArgs e)
+        {
+            //form:816,500
+            //textbox:331,364
+
+            textBoxLog.Width = 331 + (this.Width - 816);
+            textBoxLog.Height = 364 + (this.Height - 500);
+
+        }
+
+        public async Task sendmail(string subject, string body)
+        {
+            try
+            {
+                var sc = new System.Net.Mail.SmtpClient("smtp.kolumbus.fi");
+                var mm = new System.Net.Mail.MailMessage("lukki@kolumbus.fi", "matti.rytkonen@datafactory.fi", subject, body);
+                sc.SendMailAsync(mm);
+                log("sendmail / " + subject + "/" + body, false);
+            }
+            catch (Exception ex)
+            {
+                log("sendmailexception / " + subject + "/" + body + "/" + ex.ToString(), true);
+            }
+            finally { }
+
         }
     }
     class ConsoleLogger : IMqttNetLogger
@@ -1266,6 +1493,8 @@ namespace CozifyWindows
             }
             Form1.log_string += message + Environment.NewLine;
         }
+
+
     }
 
     public class Device

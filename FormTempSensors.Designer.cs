@@ -39,7 +39,6 @@
             this.label3 = new System.Windows.Forms.Label();
             this.textBoxTemperatureLogSeconds = new System.Windows.Forms.TextBox();
             this.label4 = new System.Windows.Forms.Label();
-            this.timerWriteTemperatureLog = new System.Windows.Forms.Timer(this.components);
             this.label5 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
@@ -131,11 +130,6 @@
             this.label4.TabIndex = 10;
             this.label4.Text = "seconds. 0 = disabled";
             // 
-            // timerWriteTemperatureLog
-            // 
-            this.timerWriteTemperatureLog.Enabled = true;
-            this.timerWriteTemperatureLog.Interval = 1000;
-            // 
             // label5
             // 
             this.label5.AutoSize = true;
@@ -180,7 +174,6 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.TextBox textBoxTemperatureLogSeconds;
         private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.Timer timerWriteTemperatureLog;
         private System.Windows.Forms.Label label5;
     }
 }

@@ -19,13 +19,9 @@ namespace CozifyWindows
             InitializeComponent();
         }
 
-        private   void timer1_Tick(object sender, EventArgs e)
+        private void timer1_Tick(object sender, EventArgs e)
         {
             timer1.Enabled = false;
-
-            var timer_spot_price_seconds_string = Form1.readSetting("timer_spot_price_seconds");
-
-            textBoxTimerSpotPrice.Text = timer_spot_price_seconds_string;
 
             if (Form1.deviceList != null)
             {
@@ -60,7 +56,14 @@ namespace CozifyWindows
                 return;
             }
 
-            var devicename = listBoxAvailableDevices.SelectedItem.ToString().Replace(dataSeparator, "").Replace(Environment.NewLine, "");
+            var devicename = listBoxAvailableDevices.SelectedItem.ToString();
+
+            var device_id = (from c1 in Form1.deviceList where c1.name == devicename select c1.id).FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(device_id) == true)
+            {
+                device_id = "";
+            }
 
             var sb = new StringBuilder();
 
@@ -68,7 +71,7 @@ namespace CozifyWindows
 
             foreach (var row in spot_price_controlled_devices.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries))
             {
-                if (row.StartsWith(listBoxAvailableDevices.SelectedItem.ToString() + dataSeparator) == false)
+                if (row.StartsWith(device_id + dataSeparator) == false)
                 {
                     sb.AppendLine(row);
                 }
@@ -95,7 +98,14 @@ namespace CozifyWindows
                 textBoxMaxPrice.Text = "";
             }
 
-            var newrow = devicename + dataSeparator + textBoxSpotHours.Text + dataSeparator + textBoxMaxPrice.Text;
+            int.TryParse(textBoxTimerSpotPrice.Text, out int TimerSpotPrice);
+            if (TimerSpotPrice == 0)
+            {
+                TimerSpotPrice = 60;
+            }
+            textBoxTimerSpotPrice.Text = TimerSpotPrice.ToString();
+
+            var newrow = device_id + dataSeparator + textBoxSpotHours.Text + dataSeparator + textBoxMaxPrice.Text + dataSeparator + textBoxTimerSpotPrice.Text;
             sb.AppendLine(newrow);
             Form1.saveSetting("spot_price_controlled_devices", sb.ToString());
         }
@@ -110,24 +120,54 @@ namespace CozifyWindows
             }
             textBoxSpotHours.Text = "";
             textBoxMaxPrice.Text = "";
+            textBoxTimerSpotPrice.Text = "";
 
             foreach (var row in spot_price_controlled_devices.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries))
             {
                 var data = row.Split(new string[] { dataSeparator }, StringSplitOptions.None);
-                var devicename = data[0];
+                var device_id = data[0];
+                var devicename = (from c1 in Form1.deviceList where c1.id == device_id select c1.name).FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(devicename))
+                {
+                    devicename = "";
+                }
                 var cheapesthours = data[1];
                 var maxprice = data[2];
-
+                string do_not_touch_timer = "";
+                try
+                {
+                    do_not_touch_timer = data[3];
+                }
+                catch
+                {
+                }
+                finally { }
 
                 if (devicename == listBoxAvailableDevices.SelectedItem.ToString())
                 {
                     textBoxSpotHours.Text = cheapesthours;
                     textBoxMaxPrice.Text = maxprice;
+                    textBoxTimerSpotPrice.Text = do_not_touch_timer;
                 }
             }
         }
 
         private void textBoxMaxPrice_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void listBoxAvailableDevices_Action()
+        {
+
+        }
+
+        private void listBoxAvailableDevices_MouseClick(object sender, MouseEventArgs e)
+        {
+
+        }
+
+        private void listBoxAvailableDevices_KeyPress(object sender, KeyPressEventArgs e)
         {
 
         }

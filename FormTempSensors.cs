@@ -36,9 +36,9 @@ namespace CozifyWindows
 
             label5.Text = "Log file: " + Form1.temperatureLogFile;
             var selected_temp_sensors = Form1.readSetting("selected_temp_sensors");
-            var selected_temp_sensors_list =  selected_temp_sensors.Split('§');
+            var selected_temp_sensors_list = selected_temp_sensors.Split('§');
 
-            textBoxTemperatureLogSeconds.Text =Form1.readSetting( "temperature_log_seconds");
+            textBoxTemperatureLogSeconds.Text = Form1.readSetting("temperature_log_seconds");
 
             if (Form1.deviceList != null)
             {
@@ -53,7 +53,7 @@ namespace CozifyWindows
                             {
                                 continue;
                             }
-                            if (row == device.name)
+                            if (row == device.id)
                             {
                                 listBoxSelectedTempSensors.Items.Add(device.name);
                             }
@@ -68,9 +68,14 @@ namespace CozifyWindows
             string selected_temp_sensors = "";
             foreach (string item in listBoxSelectedTempSensors.Items)
             {
-                selected_temp_sensors += item + "§";
+                var query = (from c in Form1.deviceList where c.name == item select c).FirstOrDefault();
+                if (query != null)
+                {
+                    selected_temp_sensors += query.id + "§";
+                }
+
             }
-    Form1.saveSetting(    "selected_temp_sensors", selected_temp_sensors);            
+            Form1.saveSetting("selected_temp_sensors", selected_temp_sensors);
         }
 
         private void buttonAddSensor_Click(object sender, EventArgs e)
@@ -101,20 +106,17 @@ namespace CozifyWindows
 
             listBoxSelectedTempSensors.Items.RemoveAt(listBoxSelectedTempSensors.SelectedIndex);
 
-
             saveSelectedTempSensors();
         }
 
         private void textBoxTemperatureLogSeconds_TextChanged(object sender, EventArgs e)
         {
             if (int.TryParse(textBoxTemperatureLogSeconds.Text, out int seconds) == true)
-            {                
-                Form1.saveSetting("temperature_log_seconds", seconds.ToString());                
+            {
+                Form1.saveSetting("temperature_log_seconds", seconds.ToString());
                 Form1.temperature_log_seconds = seconds;
             }
-            textBoxTemperatureLogSeconds.Text =Form1.readSetting("temperature_log_seconds");
+            textBoxTemperatureLogSeconds.Text = Form1.readSetting("temperature_log_seconds");
         }
     }
-
-
 }

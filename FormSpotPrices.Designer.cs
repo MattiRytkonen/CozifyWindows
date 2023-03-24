@@ -42,6 +42,8 @@
             this.label6 = new System.Windows.Forms.Label();
             this.label7 = new System.Windows.Forms.Label();
             this.buttonSaveSettings = new System.Windows.Forms.Button();
+            this.label8 = new System.Windows.Forms.Label();
+            this.label9 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // listBoxAvailableDevices
@@ -51,7 +53,9 @@
             this.listBoxAvailableDevices.Name = "listBoxAvailableDevices";
             this.listBoxAvailableDevices.Size = new System.Drawing.Size(186, 95);
             this.listBoxAvailableDevices.TabIndex = 10;
+            this.listBoxAvailableDevices.MouseClick += new System.Windows.Forms.MouseEventHandler(this.listBoxAvailableDevices_MouseClick);
             this.listBoxAvailableDevices.SelectedIndexChanged += new System.EventHandler(this.listBoxAvailableDevices_SelectedIndexChanged);
+            this.listBoxAvailableDevices.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.listBoxAvailableDevices_KeyPress);
             // 
             // label2
             // 
@@ -82,9 +86,9 @@
             this.label3.AutoSize = true;
             this.label3.Location = new System.Drawing.Point(15, 169);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(200, 13);
+            this.label3.Size = new System.Drawing.Size(118, 13);
             this.label3.TabIndex = 14;
-            this.label3.Text = "Keep device ON in cheapest hours: 0-24";
+            this.label3.Text = "in cheapest hours: 0-24";
             // 
             // textBoxSpotHours
             // 
@@ -97,15 +101,15 @@
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(15, 402);
+            this.label4.Location = new System.Drawing.Point(15, 238);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(144, 13);
+            this.label4.Size = new System.Drawing.Size(176, 13);
             this.label4.TabIndex = 16;
-            this.label4.Text = "Toggle devices on/off every ";
+            this.label4.Text = "And do not touch it within (seconds)";
             // 
             // textBoxTimerSpotPrice
             // 
-            this.textBoxTimerSpotPrice.Location = new System.Drawing.Point(236, 399);
+            this.textBoxTimerSpotPrice.Location = new System.Drawing.Point(236, 235);
             this.textBoxTimerSpotPrice.Name = "textBoxTimerSpotPrice";
             this.textBoxTimerSpotPrice.Size = new System.Drawing.Size(100, 20);
             this.textBoxTimerSpotPrice.TabIndex = 17;
@@ -114,7 +118,7 @@
             // label5
             // 
             this.label5.AutoSize = true;
-            this.label5.Location = new System.Drawing.Point(342, 402);
+            this.label5.Location = new System.Drawing.Point(342, 238);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(47, 13);
             this.label5.TabIndex = 18;
@@ -133,9 +137,9 @@
             this.label6.AutoSize = true;
             this.label6.Location = new System.Drawing.Point(15, 203);
             this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(156, 13);
+            this.label6.Size = new System.Drawing.Size(74, 13);
             this.label6.TabIndex = 19;
-            this.label6.Text = "Keep device ON when price <=";
+            this.label6.Text = "when price <=";
             // 
             // label7
             // 
@@ -148,7 +152,7 @@
             // 
             // buttonSaveSettings
             // 
-            this.buttonSaveSettings.Location = new System.Drawing.Point(15, 232);
+            this.buttonSaveSettings.Location = new System.Drawing.Point(18, 287);
             this.buttonSaveSettings.Name = "buttonSaveSettings";
             this.buttonSaveSettings.Size = new System.Drawing.Size(75, 23);
             this.buttonSaveSettings.TabIndex = 22;
@@ -156,11 +160,31 @@
             this.buttonSaveSettings.UseVisualStyleBackColor = true;
             this.buttonSaveSettings.Click += new System.EventHandler(this.buttonSaveSettings_Click);
             // 
+            // label8
+            // 
+            this.label8.AutoSize = true;
+            this.label8.Location = new System.Drawing.Point(18, 187);
+            this.label8.Name = "label8";
+            this.label8.Size = new System.Drawing.Size(23, 13);
+            this.label8.TabIndex = 23;
+            this.label8.Text = "OR";
+            // 
+            // label9
+            // 
+            this.label9.AutoSize = true;
+            this.label9.Location = new System.Drawing.Point(15, 153);
+            this.label9.Name = "label9";
+            this.label9.Size = new System.Drawing.Size(86, 13);
+            this.label9.TabIndex = 24;
+            this.label9.Text = "Keep device ON";
+            // 
             // FormSpotPrices
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.label9);
+            this.Controls.Add(this.label8);
             this.Controls.Add(this.buttonSaveSettings);
             this.Controls.Add(this.label7);
             this.Controls.Add(this.textBoxMaxPrice);
@@ -194,5 +218,7 @@
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Label label7;
         private System.Windows.Forms.Button buttonSaveSettings;
+        private System.Windows.Forms.Label label8;
+        private System.Windows.Forms.Label label9;
     }
 }
