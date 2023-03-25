@@ -74,12 +74,6 @@
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
-    <Compile Include="FormDeviceControl.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormDeviceControl.Designer.cs">
-      <DependentUpon>FormDeviceControl.cs</DependentUpon>
-    </Compile>
     <Compile Include="FormRuuvi.cs">
       <SubType>Form</SubType>
     </Compile>

@@ -271,7 +271,7 @@ namespace CozifyWindows
             int.TryParse(temperature_log_seconds_string, out temperature_log_seconds);
 
             var ruuvisensors = readSetting("mqtt_topics");
-            //ruuvi/D7:10:FB:EB:57:D7
+            //ruuvi/XX:XX:XX:XX:XX:XX
             var broker = readSetting("mqtt_broker");
             if (string.IsNullOrWhiteSpace(ruuvisensors) == false && string.IsNullOrWhiteSpace(broker) == false)
             {
@@ -809,7 +809,6 @@ namespace CozifyWindows
             deviceLastStatus.TryGetValue(id, out string laststatus);
             if (laststatus != device_cmd)
             {
-                sendmail("cozifywindows device " + device_name + " " + device_cmd, "cozifywindows device " + device_name + " " + device_cmd);
                 deviceLastStatus.Remove(id);
                 deviceLastStatus.Add(id, device_cmd);
             }
@@ -991,39 +990,7 @@ namespace CozifyWindows
             formRuuvi.Show();
         }
 
-        private async void button1_Click(object sender, EventArgs e)
-        {
-            string id = "1";
-
-            if (listBox1.Items.Count == 0)
-            {
-                await getDeviceList();
-            }
-
-            if (string.IsNullOrWhiteSpace(api_version))
-            {
-                await getHubApiVersion();
-            }
-            bool DEVICE_ON = true;
-            string device_cmd = "CMD_DEVICE_ON";
-
-            if (DEVICE_ON == false)
-            {
-                device_cmd = "CMD_DEVICE_OFF";
-            }
-
-            string data = "[{\"id\":\"" + id + "\",\"type\":\"" + device_cmd + "\"}]";
-            string url = "https://api.cozify.fi/ui/0.2/hub/remote/cc/" + api_version + "/devices/command";
-
-            if (string.IsNullOrWhiteSpace(lan_ip) == false)
-            {
-                url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices/command";
-            }
-            log("deviceON:" + id);
-            await HttpPost(url, data, "PUT");
-        }
-
-        private async void timer2_Tick(object sender, EventArgs e)
+       private async void timer2_Tick(object sender, EventArgs e)
         {
             timer2.Enabled = false;
 
@@ -1443,11 +1410,7 @@ namespace CozifyWindows
 
             timer2.Enabled = true;
         }
-
-        private void buttonOpenDevicesForm_Click(object sender, EventArgs e)
-        {
-
-        }
+             
 
         private void Form1_Resize(object sender, EventArgs e)
         {
@@ -1458,24 +1421,8 @@ namespace CozifyWindows
             textBoxLog.Height = 364 + (this.Height - 500);
 
         }
-
-        public async Task sendmail(string subject, string body)
-        {
-            try
-            {
-                var sc = new System.Net.Mail.SmtpClient("smtp.kolumbus.fi");
-                var mm = new System.Net.Mail.MailMessage("lukki@kolumbus.fi", "matti.rytkonen@datafactory.fi", subject, body);
-                sc.SendMailAsync(mm);
-                log("sendmail / " + subject + "/" + body, false);
-            }
-            catch (Exception ex)
-            {
-                log("sendmailexception / " + subject + "/" + body + "/" + ex.ToString(), true);
-            }
-            finally { }
-
-        }
     }
+
     class ConsoleLogger : IMqttNetLogger
     {
         public bool IsEnabled => true;
