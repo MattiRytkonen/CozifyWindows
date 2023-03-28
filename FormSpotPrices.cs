@@ -30,6 +30,8 @@ namespace CozifyWindows
                     if (device.type == "POWER_SOCKET")
                     {
                         listBoxAvailableDevices.Items.Add(device.name);
+                        comboBoxDeviceList.Items.Add(device.name);
+                        comboBoxDeviceList2.Items.Add(device.name);
                     }
                 }
             }
@@ -105,7 +107,78 @@ namespace CozifyWindows
             }
             textBoxTimerSpotPrice.Text = TimerSpotPrice.ToString();
 
-            var newrow = device_id + dataSeparator + textBoxSpotHours.Text + dataSeparator + textBoxMaxPrice.Text + dataSeparator + textBoxTimerSpotPrice.Text;
+
+
+            string deviceaction = "";
+            if (comboBoxDeviceAction.SelectedIndex != -1)
+            {
+                deviceaction = comboBoxDeviceAction.SelectedItem.ToString();
+            }
+            string selecteddevice = "";
+            if (comboBoxDeviceList.SelectedIndex != -1)
+            {
+                var q = (from c1 in Form1.deviceList where c1.name == comboBoxDeviceList.SelectedItem.ToString() select c1).FirstOrDefault();
+                if(q!= null)
+                {
+                    selecteddevice = q.id;
+                }                
+            }
+            string selecteddeviceAction = "";
+            if (comboBox1.SelectedIndex != -1)
+            {
+                selecteddeviceAction = comboBox1.SelectedItem.ToString();
+            }
+
+
+
+
+
+            string deviceaction2 = "";
+            if (comboBoxDeviceAction2.SelectedIndex != -1)
+            {
+                deviceaction2 = comboBoxDeviceAction2.SelectedItem.ToString();
+            }
+            string selecteddevice2 = "";
+            if (comboBoxDeviceList2.SelectedIndex != -1)
+            {
+                var q = (from c1 in Form1.deviceList where c1.name == comboBoxDeviceList2.SelectedItem.ToString() select c1).FirstOrDefault();
+                if (q != null)
+                {
+                    selecteddevice2 = q.id;
+                }
+            }
+            string selecteddeviceAction2 = "";
+            if (comboBox12.SelectedIndex != -1)
+            {
+                selecteddeviceAction2 = comboBox12.SelectedItem.ToString();
+            }
+
+
+
+
+
+            var newrow = device_id
+                + dataSeparator
+                + textBoxSpotHours.Text
+                + dataSeparator
+                + textBoxMaxPrice.Text
+                + dataSeparator
+                + textBoxTimerSpotPrice.Text
+                + dataSeparator
+                + deviceaction
+                + dataSeparator
+                + selecteddevice
+                + dataSeparator
+                + selecteddeviceAction 
+                + dataSeparator
+                + deviceaction2
+                + dataSeparator
+                + selecteddevice2
+                + dataSeparator
+                + selecteddeviceAction2;
+
+
+
             sb.AppendLine(newrow);
             Form1.saveSetting("spot_price_controlled_devices", sb.ToString());
         }
@@ -121,6 +194,15 @@ namespace CozifyWindows
             textBoxSpotHours.Text = "";
             textBoxMaxPrice.Text = "";
             textBoxTimerSpotPrice.Text = "";
+            
+            comboBoxDeviceAction.SelectedIndex = -1;
+            comboBoxDeviceList.SelectedIndex = -1;
+            comboBox1.SelectedIndex = -1;
+
+            comboBoxDeviceAction2.SelectedIndex = -1;
+            comboBoxDeviceList2.SelectedIndex = -1;
+            comboBox12.SelectedIndex = -1;
+
 
             foreach (var row in spot_price_controlled_devices.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries))
             {
@@ -133,21 +215,76 @@ namespace CozifyWindows
                 }
                 var cheapesthours = data[1];
                 var maxprice = data[2];
-                string do_not_touch_timer = "";
-                try
-                {
-                    do_not_touch_timer = data[3];
-                }
-                catch
-                {
-                }
-                finally { }
+                
+
 
                 if (devicename == listBoxAvailableDevices.SelectedItem.ToString())
                 {
                     textBoxSpotHours.Text = cheapesthours;
                     textBoxMaxPrice.Text = maxprice;
-                    textBoxTimerSpotPrice.Text = do_not_touch_timer;
+                    try
+                    {
+                        textBoxTimerSpotPrice.Text = data[3];
+                    }
+                    catch { }
+                    finally { }
+
+
+
+
+
+
+                    try
+                    {
+                        comboBoxDeviceAction.SelectedItem = data[4];
+                    }
+                    catch { }
+                    finally { }
+
+                    try
+                    {
+                        var q = (from c1 in Form1.deviceList where c1.id == data[5] select c1).FirstOrDefault();                        
+                            comboBoxDeviceList.SelectedItem = q.name;                                                
+                    }
+                    catch { }
+                    finally { }
+
+                    try
+                    {
+                        comboBox1.SelectedItem = data[6];
+                    }
+                    catch { }
+                    finally { }
+
+
+
+
+
+                    try
+                    {
+                        comboBoxDeviceAction2.SelectedItem = data[7];
+                    }
+                    catch { }
+                    finally { }
+
+                    try
+                    {
+                        var q = (from c1 in Form1.deviceList where c1.id == data[8] select c1).FirstOrDefault();
+                        comboBoxDeviceList2.SelectedItem = q.name;
+                    }
+                    catch { }
+                    finally { }
+
+                    try
+                    {
+                        comboBox12.SelectedItem = data[9];
+                    }
+                    catch { }
+                    finally { }
+
+
+
+
                 }
             }
         }

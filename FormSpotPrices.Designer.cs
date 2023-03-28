@@ -44,6 +44,18 @@
             this.buttonSaveSettings = new System.Windows.Forms.Button();
             this.label8 = new System.Windows.Forms.Label();
             this.label9 = new System.Windows.Forms.Label();
+            this.label10 = new System.Windows.Forms.Label();
+            this.comboBoxDeviceAction = new System.Windows.Forms.ComboBox();
+            this.label11 = new System.Windows.Forms.Label();
+            this.comboBoxDeviceList = new System.Windows.Forms.ComboBox();
+            this.label12 = new System.Windows.Forms.Label();
+            this.comboBox1 = new System.Windows.Forms.ComboBox();
+            this.comboBox12 = new System.Windows.Forms.ComboBox();
+            this.label13 = new System.Windows.Forms.Label();
+            this.comboBoxDeviceList2 = new System.Windows.Forms.ComboBox();
+            this.label14 = new System.Windows.Forms.Label();
+            this.comboBoxDeviceAction2 = new System.Windows.Forms.ComboBox();
+            this.label15 = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // listBoxAvailableDevices
@@ -152,7 +164,7 @@
             // 
             // buttonSaveSettings
             // 
-            this.buttonSaveSettings.Location = new System.Drawing.Point(18, 287);
+            this.buttonSaveSettings.Location = new System.Drawing.Point(12, 415);
             this.buttonSaveSettings.Name = "buttonSaveSettings";
             this.buttonSaveSettings.Size = new System.Drawing.Size(75, 23);
             this.buttonSaveSettings.TabIndex = 22;
@@ -178,11 +190,137 @@
             this.label9.TabIndex = 24;
             this.label9.Text = "Keep device ON";
             // 
+            // label10
+            // 
+            this.label10.AutoSize = true;
+            this.label10.Location = new System.Drawing.Point(18, 286);
+            this.label10.Name = "label10";
+            this.label10.Size = new System.Drawing.Size(114, 13);
+            this.label10.TabIndex = 25;
+            this.label10.Text = "1. Keep device always";
+            // 
+            // comboBoxDeviceAction
+            // 
+            this.comboBoxDeviceAction.FormattingEnabled = true;
+            this.comboBoxDeviceAction.Items.AddRange(new object[] {
+            "ON",
+            "OFF"});
+            this.comboBoxDeviceAction.Location = new System.Drawing.Point(138, 283);
+            this.comboBoxDeviceAction.Name = "comboBoxDeviceAction";
+            this.comboBoxDeviceAction.Size = new System.Drawing.Size(44, 21);
+            this.comboBoxDeviceAction.TabIndex = 26;
+            // 
+            // label11
+            // 
+            this.label11.AutoSize = true;
+            this.label11.Location = new System.Drawing.Point(188, 286);
+            this.label11.Name = "label11";
+            this.label11.Size = new System.Drawing.Size(71, 13);
+            this.label11.TabIndex = 27;
+            this.label11.Text = "when device ";
+            // 
+            // comboBoxDeviceList
+            // 
+            this.comboBoxDeviceList.FormattingEnabled = true;
+            this.comboBoxDeviceList.Location = new System.Drawing.Point(265, 283);
+            this.comboBoxDeviceList.Name = "comboBoxDeviceList";
+            this.comboBoxDeviceList.Size = new System.Drawing.Size(172, 21);
+            this.comboBoxDeviceList.TabIndex = 28;
+            // 
+            // label12
+            // 
+            this.label12.AutoSize = true;
+            this.label12.Location = new System.Drawing.Point(443, 286);
+            this.label12.Name = "label12";
+            this.label12.Size = new System.Drawing.Size(14, 13);
+            this.label12.TabIndex = 29;
+            this.label12.Text = "is";
+            // 
+            // comboBox1
+            // 
+            this.comboBox1.FormattingEnabled = true;
+            this.comboBox1.Items.AddRange(new object[] {
+            "ON",
+            "OFF"});
+            this.comboBox1.Location = new System.Drawing.Point(463, 283);
+            this.comboBox1.Name = "comboBox1";
+            this.comboBox1.Size = new System.Drawing.Size(44, 21);
+            this.comboBox1.TabIndex = 30;
+            // 
+            // comboBox12
+            // 
+            this.comboBox12.FormattingEnabled = true;
+            this.comboBox12.Items.AddRange(new object[] {
+            "ON",
+            "OFF"});
+            this.comboBox12.Location = new System.Drawing.Point(463, 325);
+            this.comboBox12.Name = "comboBox12";
+            this.comboBox12.Size = new System.Drawing.Size(44, 21);
+            this.comboBox12.TabIndex = 36;
+            // 
+            // label13
+            // 
+            this.label13.AutoSize = true;
+            this.label13.Location = new System.Drawing.Point(443, 328);
+            this.label13.Name = "label13";
+            this.label13.Size = new System.Drawing.Size(14, 13);
+            this.label13.TabIndex = 35;
+            this.label13.Text = "is";
+            // 
+            // comboBoxDeviceList2
+            // 
+            this.comboBoxDeviceList2.FormattingEnabled = true;
+            this.comboBoxDeviceList2.Location = new System.Drawing.Point(265, 325);
+            this.comboBoxDeviceList2.Name = "comboBoxDeviceList2";
+            this.comboBoxDeviceList2.Size = new System.Drawing.Size(172, 21);
+            this.comboBoxDeviceList2.TabIndex = 34;
+            // 
+            // label14
+            // 
+            this.label14.AutoSize = true;
+            this.label14.Location = new System.Drawing.Point(188, 328);
+            this.label14.Name = "label14";
+            this.label14.Size = new System.Drawing.Size(71, 13);
+            this.label14.TabIndex = 33;
+            this.label14.Text = "when device ";
+            // 
+            // comboBoxDeviceAction2
+            // 
+            this.comboBoxDeviceAction2.FormattingEnabled = true;
+            this.comboBoxDeviceAction2.Items.AddRange(new object[] {
+            "ON",
+            "OFF"});
+            this.comboBoxDeviceAction2.Location = new System.Drawing.Point(138, 325);
+            this.comboBoxDeviceAction2.Name = "comboBoxDeviceAction2";
+            this.comboBoxDeviceAction2.Size = new System.Drawing.Size(44, 21);
+            this.comboBoxDeviceAction2.TabIndex = 32;
+            // 
+            // label15
+            // 
+            this.label15.AutoSize = true;
+            this.label15.Location = new System.Drawing.Point(18, 328);
+            this.label15.Name = "label15";
+            this.label15.Size = new System.Drawing.Size(114, 13);
+            this.label15.TabIndex = 31;
+            this.label15.Text = "2. Keep device always";
+            // 
             // FormSpotPrices
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.comboBox12);
+            this.Controls.Add(this.label13);
+            this.Controls.Add(this.comboBoxDeviceList2);
+            this.Controls.Add(this.label14);
+            this.Controls.Add(this.comboBoxDeviceAction2);
+            this.Controls.Add(this.label15);
+            this.Controls.Add(this.comboBox1);
+            this.Controls.Add(this.label12);
+            this.Controls.Add(this.comboBoxDeviceList);
+            this.Controls.Add(this.label11);
+            this.Controls.Add(this.comboBoxDeviceAction);
+            this.Controls.Add(this.label10);
             this.Controls.Add(this.label9);
             this.Controls.Add(this.label8);
             this.Controls.Add(this.buttonSaveSettings);
@@ -220,5 +358,17 @@
         private System.Windows.Forms.Button buttonSaveSettings;
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.Label label9;
+        private System.Windows.Forms.Label label10;
+        private System.Windows.Forms.ComboBox comboBoxDeviceAction;
+        private System.Windows.Forms.Label label11;
+        private System.Windows.Forms.ComboBox comboBoxDeviceList;
+        private System.Windows.Forms.Label label12;
+        private System.Windows.Forms.ComboBox comboBox1;
+        private System.Windows.Forms.ComboBox comboBox12;
+        private System.Windows.Forms.Label label13;
+        private System.Windows.Forms.ComboBox comboBoxDeviceList2;
+        private System.Windows.Forms.Label label14;
+        private System.Windows.Forms.ComboBox comboBoxDeviceAction2;
+        private System.Windows.Forms.Label label15;
     }
 }

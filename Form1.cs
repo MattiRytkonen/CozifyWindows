@@ -20,6 +20,7 @@ using MQTTnet.Client;
 using System.Xml;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
+using System.Security.Cryptography;
 
 namespace CozifyWindows
 {
@@ -41,9 +42,12 @@ namespace CozifyWindows
         public Dictionary<string, DateTime> ruuviSensorLastTouch;
         public DateTime lastTemperatureLogTime;
         public Dictionary<string, DateTime> lastSpotPriceExecute = new Dictionary<string, DateTime>();
+        public Dictionary<string, DateTime> lastSpotPriceExecute1 = new Dictionary<string, DateTime>();
         private DateTime lastLogFileCheck;
         private string logfile;
         private Dictionary<string, string> deviceLastStatus = new Dictionary<string, string>();
+        private DateTime lastDeviceListGet;
+
 
         public Form1()
         {
@@ -594,6 +598,10 @@ namespace CozifyWindows
                     device.reachable = cozify_device.state.reachable;
                     device.lastSeen = cozify_device.state.lastSeen;
                     device.state_type = cozify_device.state.type;
+                    if (cozify_device.state.isOn != null)
+                    {
+                        device.isOn = cozify_device.state.isOn;
+                    }
 
                     if (device.type == "MULTI_SENSOR")
                     {
@@ -990,16 +998,18 @@ namespace CozifyWindows
             formRuuvi.Show();
         }
 
-       private async void timer2_Tick(object sender, EventArgs e)
+        private async void timer2_Tick(object sender, EventArgs e)
         {
             timer2.Enabled = false;
+
+            await getDeviceList();
+
+            var devicecontrol = new List<string>();
 
             //temperature logging
             if (temperature_log_seconds != 0 && lastTemperatureLogTime < DateTime.Now.AddSeconds(temperature_log_seconds * -1))
             {
                 var selected_temp_sensors_list = readSetting("selected_temp_sensors").Split('§');
-
-                await getDeviceList();
 
                 string date = dateString();
 
@@ -1061,10 +1071,254 @@ namespace CozifyWindows
                 int.TryParse(timer_spot_price_seconds_string, out int timer_spot_price_seconds);
 
 
-                if (timer_spot_price_seconds == 0)
+
+
+                lastSpotPriceExecute1.TryGetValue(device_id, out DateTime lastSpotPriceExecuteTime1);
+
+
+
+
+
+
+                string comboBoxDeviceAction = "";
+
+                try
                 {
-                    continue;
+                    comboBoxDeviceAction = data[4];
                 }
+                catch { }
+                finally { }
+
+
+                string deviceactionDevice = "";
+
+                try
+                {
+                    deviceactionDevice = data[5];
+                }
+                catch { }
+                finally { }
+
+                string deviceactionState = "";
+
+                try
+                {
+                    deviceactionState = data[6];
+                }
+                catch { }
+                finally { }
+
+
+
+                if (string.IsNullOrWhiteSpace(comboBoxDeviceAction) == false
+    &&
+    string.IsNullOrWhiteSpace(deviceactionDevice) == false
+    &&
+    string.IsNullOrWhiteSpace(deviceactionState) == false
+    )
+                {
+                    var device2 = getDevice(deviceactionDevice);
+                    if (device2 != null)
+                    {
+                        if (deviceactionState == "ON")
+                        {
+                            if (device2.isOn == true)
+                            {
+                                if (comboBoxDeviceAction == "ON")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+
+                                    await deviceControl(device_id, true);
+                                    continue;
+                                }
+                                if (comboBoxDeviceAction == "OFF")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+
+                                    await deviceControl(device_id, false);
+                                    continue;
+                                }
+
+                            }
+                        }
+
+                        if (deviceactionState == "OFF")
+                        {
+                            if (device2.isOn == false)
+                            {
+                                if (comboBoxDeviceAction == "ON")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+                                    await deviceControl(device_id, true);
+                                    continue;
+                                }
+                                if (comboBoxDeviceAction == "OFF")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+                                    await deviceControl(device_id, false);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+
+
+
+
+
+
+
+                string comboBoxDeviceAction2 = "";
+
+                try
+                {
+                    comboBoxDeviceAction2 = data[7];
+                }
+                catch { }
+                finally { }
+
+
+                string deviceactionDevice2 = "";
+
+                try
+                {
+                    deviceactionDevice2 = data[8];
+                }
+                catch { }
+                finally { }
+
+                string deviceactionState2 = "";
+
+                try
+                {
+                    deviceactionState2 = data[9];
+                }
+                catch { }
+                finally { }
+
+
+
+
+
+
+
+
+
+
+
+                if (string.IsNullOrWhiteSpace(comboBoxDeviceAction2) == false
+                    &&
+                    string.IsNullOrWhiteSpace(deviceactionDevice2) == false
+                    &&
+                    string.IsNullOrWhiteSpace(deviceactionState2) == false
+                    )
+                {
+                    var device2 = getDevice(deviceactionDevice2);
+                    if (device2 != null)
+                    {
+                        if (deviceactionState2 == "ON")
+                        {
+                            if (device2.isOn == true)
+                            {
+                                if (comboBoxDeviceAction2 == "ON")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+
+                                    await deviceControl(device_id, true);
+                                    continue;
+                                }
+                                if (comboBoxDeviceAction2 == "OFF")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+
+                                    await deviceControl(device_id, false);
+                                    continue;
+                                }
+
+                            }
+                        }
+
+                        if (deviceactionState2 == "OFF")
+                        {
+                            if (device2.isOn == false)
+                            {
+                                if (comboBoxDeviceAction2 == "ON")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+                                    await deviceControl(device_id, true);
+                                    continue;
+                                }
+                                if (comboBoxDeviceAction2 == "OFF")
+                                {
+                                    devicecontrol.Add(device_id);
+                                    if (lastSpotPriceExecuteTime1 > DateTime.Now.AddSeconds(timer_spot_price_seconds * -1))
+                                    {
+                                        continue;
+                                    }
+
+                                    lastSpotPriceExecute1.Remove(device_id);
+                                    lastSpotPriceExecute1.Add(device_id, DateTime.Now);
+                                    await deviceControl(device_id, false);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
+
 
                 lastSpotPriceExecute.TryGetValue(device_id, out DateTime lastSpotPriceExecuteTime);
 
@@ -1073,7 +1327,26 @@ namespace CozifyWindows
                 {
                     continue;
                 }
+
+
+
+
+
+                if (timer_spot_price_seconds == 0)
+                {
+                    continue;
+                }
+
+
+
+
                 if (string.IsNullOrWhiteSpace(spot_price_controlled_devices))
+                {
+                    continue;
+                }
+
+
+                if (devicecontrol.Contains(device_id))
                 {
                     continue;
                 }
@@ -1371,11 +1644,19 @@ namespace CozifyWindows
                             {
                                 if (deviceAction == "ON")
                                 {
+                                    if (devicecontrol.Contains(selectedDevice))
+                                    {
+                                        continue;
+                                    }
                                     log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") on. temp:" + temperature.ToString());
                                     await deviceON(selectedDevice);
                                 }
                                 if (deviceAction == "OFF")
                                 {
+                                    if (devicecontrol.Contains(selectedDevice))
+                                    {
+                                        continue;
+                                    }
                                     log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") off. temp:" + temperature.ToString());
                                     await deviceOFF(selectedDevice);
                                 }
@@ -1385,14 +1666,21 @@ namespace CozifyWindows
                         {
                             if (temperature_number < temperature)
                             {
-
                                 if (deviceAction == "ON")
                                 {
+                                    if (devicecontrol.Contains(selectedDevice))
+                                    {
+                                        continue;
+                                    }
                                     log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") on. temp:" + temperature.ToString());
                                     await deviceON(selectedDevice);
                                 }
                                 if (deviceAction == "OFF")
                                 {
+                                    if (devicecontrol.Contains(selectedDevice))
+                                    {
+                                        continue;
+                                    }
                                     log("timer2_Tick ruuvi execute rule [" + rule + "] device (" + selectedDevice + ") off. temp:" + temperature.ToString());
                                     await deviceOFF(selectedDevice);
                                 }
@@ -1410,7 +1698,7 @@ namespace CozifyWindows
 
             timer2.Enabled = true;
         }
-             
+
 
         private void Form1_Resize(object sender, EventArgs e)
         {
@@ -1420,6 +1708,11 @@ namespace CozifyWindows
             textBoxLog.Width = 331 + (this.Width - 816);
             textBoxLog.Height = 364 + (this.Height - 500);
 
+        }
+
+        private Device getDevice(string id)
+        {
+            return (from c1 in deviceList where c1.id == id select c1).FirstOrDefault();
         }
     }
 
@@ -1453,6 +1746,7 @@ namespace CozifyWindows
         public double? temperature { get; set; }
         public double? humidity { get; set; }
         public string state_type { get; set; }
+        public bool isOn { get; set; }
         public string type { get; set; }
         public string[] capabilities { get; set; }
     }

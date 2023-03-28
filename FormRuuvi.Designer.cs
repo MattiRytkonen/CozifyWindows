@@ -210,9 +210,6 @@
             // comboBoxDeviceList
             // 
             this.comboBoxDeviceList.FormattingEnabled = true;
-            this.comboBoxDeviceList.Items.AddRange(new object[] {
-            "ON",
-            "OFF"});
             this.comboBoxDeviceList.Location = new System.Drawing.Point(607, 82);
             this.comboBoxDeviceList.Name = "comboBoxDeviceList";
             this.comboBoxDeviceList.Size = new System.Drawing.Size(172, 21);
