@@ -47,7 +47,20 @@ namespace CozifyWindows
         private string logfile;
         private Dictionary<string, string> deviceLastStatus = new Dictionary<string, string>();
         private DateTime lastDeviceListGet;
+        private DateTime lastSpotPriceDownload;
+        private int spotErrorCounter;
 
+        private static List<string> settingsData = null;
+        private static DateTime settingsDataSaved = DateTime.MinValue;
+
+        public static bool settingsSaveInProgress = false;
+
+        private static Dictionary<string, bool> deviceStatusMemory = new Dictionary<string, bool>();
+
+        private static DateTime getDeviceListLastExecuted = DateTime.MinValue;
+
+        public Queue<string> logQueue = new Queue<string>();
+        private DateTime logLastWriteTime = DateTime.MinValue;
 
         public Form1()
         {
@@ -64,13 +77,23 @@ namespace CozifyWindows
             {
                 return "";
             }
-            if (File.Exists(settingsfile) == false)
+
+
+            if (settingsData == null)
+            {
+                if (File.Exists(settingsfile) == false)
+                {
+                    return "";
+                }
+                settingsData = File.ReadAllLines(settingsfile).ToList();
+            }
+            if (string.IsNullOrWhiteSpace(key) == true)
             {
                 return "";
             }
-            var rows = File.ReadAllLines(settingsfile);
+
             string searchstring = key + "=";
-            foreach (var row in rows)
+            foreach (var row in settingsData)
             {
                 if (row.StartsWith(searchstring))
                 {
@@ -82,6 +105,17 @@ namespace CozifyWindows
 
         public static void saveSetting(string key, string value)
         {
+            int counter = 20;
+            while (settingsSaveInProgress == true)
+            {
+                System.Threading.Thread.Sleep(100);
+                counter--;
+                if (counter < 1)
+                {
+                    break;
+                }
+            }
+            settingsSaveInProgress = true;
             if (string.IsNullOrWhiteSpace(settingsfile))
             {
                 getSettingsFile();
@@ -90,32 +124,55 @@ namespace CozifyWindows
             {
                 return;
             }
-            value = value.Replace("\n", linefeed);
-            value = value.Replace("\r", "");
 
-            string searchstring = key + "=";
-
-            var sb = new StringBuilder();
-            if (File.Exists(settingsfile) == true)
+            if (settingsData == null)
             {
-                var rows = File.ReadAllLines(settingsfile);
+                readSetting(null);
+            }
 
-                foreach (var row in rows)
+
+            if (string.IsNullOrWhiteSpace(key) == false)
+            {
+                value = value.Replace("\n", linefeed);
+                value = value.Replace("\r", "");
+
+                string searchstring = key + "=";
+                var q = (from c1 in settingsData where c1.StartsWith(searchstring) select c1).FirstOrDefault();
+                if (q != null)
                 {
-                    if (row.StartsWith(searchstring) == false)
-                    {
-                        sb.AppendLine(row);
-                    }
+                    settingsData.Remove(q);
+                }
+
+
+                //if (File.Exists(settingsfile) == true)
+                //{
+                //    var rows = File.ReadAllLines(settingsfile);
+
+                //    foreach (var row in rows)
+                //    {
+                //        if (row.StartsWith(searchstring) == false)
+                //        {
+                //            sb.AppendLine(row);
+                //        }
+                //    }
+                //}
+                if (string.IsNullOrWhiteSpace(value) == false)
+                {
+                    settingsData.Add(searchstring + value);
+                    //sb.AppendLine(searchstring + value);
                 }
             }
-            if (string.IsNullOrWhiteSpace(value) == false)
+            if (settingsDataSaved < DateTime.Now.AddMinutes(-10))
             {
-                sb.AppendLine(searchstring + value);
+                var sb = new StringBuilder();
+                foreach (var row in settingsData)
+                {
+                    sb.AppendLine(row);
+                }
+                File.WriteAllText(settingsfile, sb.ToString());
+                settingsDataSaved = DateTime.Now;
             }
-
-            System.IO.File.WriteAllText(settingsfile, sb.ToString());
-
-            return;
+            settingsSaveInProgress = false;
         }
         public static void getSettingsFile()
         {
@@ -171,7 +228,7 @@ namespace CozifyWindows
         {
             timer1.Enabled = false;
 
-            logfile = Path.Combine(Application.StartupPath, "log.txt");
+            logfile = Path.Combine(Application.StartupPath, "cozifyWindows.log");
             lastLogFileCheck = DateTime.MinValue;
 
             email = getEmail();
@@ -316,14 +373,31 @@ namespace CozifyWindows
         public void log(string text, bool printScreen = true)
         {
             string logline = DateTime.Now.ToString() + " : " + text + Environment.NewLine;
+
             if (printScreen)
             {
                 textBoxLog.AppendText(logline);
             }
+            logQueue.Enqueue(logline);
+
+
+
+            if (logLastWriteTime > DateTime.Now.AddSeconds(-10))
+            {
+                return;
+            }
+
+            var sb = new StringBuilder();
+            while (logQueue.Count > 0)
+            {
+                sb.AppendLine(logQueue.Dequeue());
+            }
+
 
             try
             {
-                System.IO.File.AppendAllText(logfile, logline);
+                System.IO.File.AppendAllText(logfile, sb.ToString());
+                logLastWriteTime = DateTime.Now;
             }
             catch (Exception ex)
             {
@@ -334,10 +408,11 @@ namespace CozifyWindows
             //truncate log file
             if (lastLogFileCheck < DateTime.Now.AddHours(-1))
             {
+
                 var fi = new FileInfo(logfile);
                 if (fi.Length > 100 * 1024 * 1024)
                 {
-                    var old_logfile = logfile + ".old";
+                    var old_logfile = logfile + ".old.log";
                     if (File.Exists(old_logfile))
                     {
                         File.Delete(old_logfile);
@@ -417,11 +492,15 @@ namespace CozifyWindows
             finally { }
         }
 
-        private async Task<string> HttpGet(string url)
+        private async Task<string> HttpGet(string url, bool logging = true)
         {
             try
             {
-                log("HttpGet " + url, false);
+                if (logging)
+                {
+                    log("HttpGet " + url, false);
+                }
+
                 UTF8Encoding encoding = new UTF8Encoding();
 
                 HttpWebRequest req = WebRequest.Create(url) as HttpWebRequest;
@@ -465,13 +544,16 @@ namespace CozifyWindows
                 {
                     result = "[OK]";
                 }
-                log("HttpGet result: " + result, false);
+                if (logging)
+                {
+                    log("HttpGet result: " + result, false);
+                }
                 return result;
             }
             catch (Exception ex)
             {
                 string msg = "ERROR " + ex.ToString();
-                log(msg);
+                log("HttpGet:" + msg);
                 return null;
             }
             finally { }
@@ -536,6 +618,10 @@ namespace CozifyWindows
 
         private async Task getDeviceList()
         {
+            if (getDeviceListLastExecuted > DateTime.Now.AddSeconds(-30))
+            {
+                return;
+            }
             deviceList = new List<Device>();
             if (string.IsNullOrWhiteSpace(api_version))
             {
@@ -571,7 +657,7 @@ namespace CozifyWindows
                 url = "http://" + lan_ip + ":8893/cc/" + api_version + "/devices";
             }
 
-            var json = await HttpGet(url);
+            var json = await HttpGet(url, false);
 
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -862,10 +948,25 @@ namespace CozifyWindows
 
         private string downloadSpotPrices()
         {
+            if (lastSpotPriceDownload > DateTime.Now.AddMinutes(-30))
+            {
+                log("downloadSpotPrices last downloaded " + lastSpotPriceDownload.ToString() + ". Wait at least 30 min before retry");
+                return "";
+            }
+            string data = "";
             var w = new WebClient();
-            var data = w.DownloadString("https://api.spot-hinta.fi/TodayAndDayForward");
-            log("downloadSpotPrices response: " + data);
-            saveSetting("spot_price_list", data);
+            try
+            {
+                data = w.DownloadString("https://api.spot-hinta.fi/TodayAndDayForward");
+                log("downloadSpotPrices response: " + data);
+                saveSetting("spot_price_list", data);
+            }
+            catch (Exception ex)
+            {
+                log("downloadSpotPrices error " + ex.ToString());
+            }
+            finally { }
+            lastSpotPriceDownload = DateTime.Now;
             return data;
         }
 
@@ -998,9 +1099,34 @@ namespace CozifyWindows
             formRuuvi.Show();
         }
 
+        private void telldus(bool turnOn, string deviceId)
+        {
+            log("telldus turnOn: " + turnOn.ToString() + ". id:" + deviceId);
+            try
+            {
+                var p = new System.Diagnostics.Process();
+                string action = "Off";
+                if (turnOn == true)
+                {
+                    action = "On";
+                }
+                p.StartInfo.Arguments = "id=" + deviceId + " " + action;
+                p.StartInfo.FileName = "telldus.exe";
+                p.StartInfo.WorkingDirectory = Application.StartupPath;
+                p.Start();
+            }
+            catch (Exception ex)
+            {
+                log("telldus " + ex.ToString(), true);
+            }
+            finally { }
+        }
+
         private async void timer2_Tick(object sender, EventArgs e)
         {
             timer2.Enabled = false;
+            timer2.Interval = 30000;
+
 
             await getDeviceList();
 
@@ -1108,14 +1234,12 @@ namespace CozifyWindows
                 catch { }
                 finally { }
 
-
-
                 if (string.IsNullOrWhiteSpace(comboBoxDeviceAction) == false
-    &&
-    string.IsNullOrWhiteSpace(deviceactionDevice) == false
-    &&
-    string.IsNullOrWhiteSpace(deviceactionState) == false
-    )
+                    &&
+                    string.IsNullOrWhiteSpace(deviceactionDevice) == false
+                    &&
+                    string.IsNullOrWhiteSpace(deviceactionState) == false
+                    )
                 {
                     var device2 = getDevice(deviceactionDevice);
                     if (device2 != null)
@@ -1191,14 +1315,6 @@ namespace CozifyWindows
                     }
                 }
 
-
-
-
-
-
-
-
-
                 string comboBoxDeviceAction2 = "";
 
                 try
@@ -1229,11 +1345,39 @@ namespace CozifyWindows
 
 
 
+                string telldusDeviceId = "";
+
+                try
+                {
+                    telldusDeviceId = data[10];
+                }
+                catch { }
+                finally { }
 
 
 
+                if (string.IsNullOrWhiteSpace(telldusDeviceId) == false)
+                {
 
-
+                    var device2 = getDevice(device_id);
+                    if (device2 != null)
+                    {
+                        bool executeTelldus = true;
+                        if (deviceStatusMemory.TryGetValue(device_id, out bool oldStatus))
+                        {
+                            if (oldStatus == device2.isOn)
+                            {
+                                executeTelldus = false;
+                            }
+                        }
+                        if (executeTelldus == true)
+                        {
+                            telldus(device2.isOn, telldusDeviceId);
+                            deviceStatusMemory.Remove(device_id);
+                            deviceStatusMemory.Add(device_id, device2.isOn);
+                        }
+                    }
+                }
 
 
 
@@ -1385,28 +1529,35 @@ namespace CozifyWindows
                                      && c1.date.Hour == DateTime.Now.Hour
                                      select c1).FirstOrDefault();
 
+                    bool turnOffByCheapestHours = false;
+                    bool turnOffByPrice = false;
+
                     if (spotquery == null)
                     {
+
+                        spotErrorCounter++;
                         var prices = downloadSpotPrices();
                         parseSpotPrices(prices);
-                        continue;
+                        if (spotErrorCounter > 20)
+                        {
+                            log("lets control devices without spot prices");
+                        }
+                        else
+                        {
+                            continue;
+                        }
                     }
-
-
+                    spotErrorCounter = 0;
                     log("spot PriceWithTax:" + spotquery.PriceWithTax.ToString());
                     log("maxprice:" + maxprice.ToString());
                     log("spot price rank:" + spotquery.rank.ToString());
                     log("cheapset hours:" + cheapesthours.ToString());
 
 
-                    bool turnOffByCheapestHours = false;
-                    bool turnOffByPrice = false;
-
                     if (cheapesthours > 0)
                     {
                         if (spotquery.rank > cheapesthours)
                         {
-
                             turnOffByCheapestHours = true;
                         }
                     }
@@ -1713,6 +1864,19 @@ namespace CozifyWindows
         private Device getDevice(string id)
         {
             return (from c1 in deviceList where c1.id == id select c1).FirstOrDefault();
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            settingsDataSaved = DateTime.MinValue;
+            logLastWriteTime = DateTime.MinValue;
+            saveSetting(null, null);
+            log("shut down");
         }
     }
 

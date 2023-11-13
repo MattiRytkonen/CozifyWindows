@@ -308,6 +308,8 @@
             this.Controls.Add(this.label1);
             this.Name = "Form1";
             this.Text = "CozifyWindows 1.0";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
+            this.Load += new System.EventHandler(this.Form1_Load);
             this.Resize += new System.EventHandler(this.Form1_Resize);
             this.ResumeLayout(false);
             this.PerformLayout();

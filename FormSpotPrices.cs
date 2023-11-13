@@ -118,10 +118,10 @@ namespace CozifyWindows
             if (comboBoxDeviceList.SelectedIndex != -1)
             {
                 var q = (from c1 in Form1.deviceList where c1.name == comboBoxDeviceList.SelectedItem.ToString() select c1).FirstOrDefault();
-                if(q!= null)
+                if (q != null)
                 {
                     selecteddevice = q.id;
-                }                
+                }
             }
             string selecteddeviceAction = "";
             if (comboBox1.SelectedIndex != -1)
@@ -153,10 +153,6 @@ namespace CozifyWindows
                 selecteddeviceAction2 = comboBox12.SelectedItem.ToString();
             }
 
-
-
-
-
             var newrow = device_id
                 + dataSeparator
                 + textBoxSpotHours.Text
@@ -169,13 +165,16 @@ namespace CozifyWindows
                 + dataSeparator
                 + selecteddevice
                 + dataSeparator
-                + selecteddeviceAction 
+                + selecteddeviceAction
                 + dataSeparator
                 + deviceaction2
                 + dataSeparator
                 + selecteddevice2
                 + dataSeparator
-                + selecteddeviceAction2;
+                + selecteddeviceAction2
+                + dataSeparator
+                + textBoxTelldusDeviceId.Text
+                ;
 
 
 
@@ -194,7 +193,7 @@ namespace CozifyWindows
             textBoxSpotHours.Text = "";
             textBoxMaxPrice.Text = "";
             textBoxTimerSpotPrice.Text = "";
-            
+
             comboBoxDeviceAction.SelectedIndex = -1;
             comboBoxDeviceList.SelectedIndex = -1;
             comboBox1.SelectedIndex = -1;
@@ -215,7 +214,7 @@ namespace CozifyWindows
                 }
                 var cheapesthours = data[1];
                 var maxprice = data[2];
-                
+
 
 
                 if (devicename == listBoxAvailableDevices.SelectedItem.ToString())
@@ -229,11 +228,6 @@ namespace CozifyWindows
                     catch { }
                     finally { }
 
-
-
-
-
-
                     try
                     {
                         comboBoxDeviceAction.SelectedItem = data[4];
@@ -243,8 +237,8 @@ namespace CozifyWindows
 
                     try
                     {
-                        var q = (from c1 in Form1.deviceList where c1.id == data[5] select c1).FirstOrDefault();                        
-                            comboBoxDeviceList.SelectedItem = q.name;                                                
+                        var q = (from c1 in Form1.deviceList where c1.id == data[5] select c1).FirstOrDefault();
+                        comboBoxDeviceList.SelectedItem = q.name;
                     }
                     catch { }
                     finally { }
@@ -255,10 +249,6 @@ namespace CozifyWindows
                     }
                     catch { }
                     finally { }
-
-
-
-
 
                     try
                     {
@@ -282,9 +272,12 @@ namespace CozifyWindows
                     catch { }
                     finally { }
 
-
-
-
+                    try
+                    {
+                        textBoxTelldusDeviceId.Text = data[10];
+                    }
+                    catch { }
+                    finally { }
                 }
             }
         }

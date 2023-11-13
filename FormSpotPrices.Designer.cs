@@ -56,6 +56,8 @@
             this.label14 = new System.Windows.Forms.Label();
             this.comboBoxDeviceAction2 = new System.Windows.Forms.ComboBox();
             this.label15 = new System.Windows.Forms.Label();
+            this.label16 = new System.Windows.Forms.Label();
+            this.textBoxTelldusDeviceId = new System.Windows.Forms.TextBox();
             this.SuspendLayout();
             // 
             // listBoxAvailableDevices
@@ -304,11 +306,29 @@
             this.label15.TabIndex = 31;
             this.label15.Text = "2. Keep device always";
             // 
+            // label16
+            // 
+            this.label16.AutoSize = true;
+            this.label16.Location = new System.Drawing.Point(15, 365);
+            this.label16.Name = "label16";
+            this.label16.Size = new System.Drawing.Size(335, 13);
+            this.label16.TabIndex = 37;
+            this.label16.Text = "Turn Telldus Live device on/off with cozify device. Telldus Device Id:";
+            // 
+            // textBoxTelldusDeviceId
+            // 
+            this.textBoxTelldusDeviceId.Location = new System.Drawing.Point(362, 362);
+            this.textBoxTelldusDeviceId.Name = "textBoxTelldusDeviceId";
+            this.textBoxTelldusDeviceId.Size = new System.Drawing.Size(145, 20);
+            this.textBoxTelldusDeviceId.TabIndex = 38;
+            // 
             // FormSpotPrices
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.textBoxTelldusDeviceId);
+            this.Controls.Add(this.label16);
             this.Controls.Add(this.comboBox12);
             this.Controls.Add(this.label13);
             this.Controls.Add(this.comboBoxDeviceList2);
@@ -370,5 +390,7 @@
         private System.Windows.Forms.Label label14;
         private System.Windows.Forms.ComboBox comboBoxDeviceAction2;
         private System.Windows.Forms.Label label15;
+        private System.Windows.Forms.Label label16;
+        private System.Windows.Forms.TextBox textBoxTelldusDeviceId;
     }
 }
