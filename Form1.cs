@@ -21,6 +21,7 @@ using System.Xml;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 using System.Security.Cryptography;
+using Newtonsoft.Json.Linq;
 
 namespace CozifyWindows
 {
@@ -61,6 +62,7 @@ namespace CozifyWindows
 
         public Queue<string> logQueue = new Queue<string>();
         private DateTime logLastWriteTime = DateTime.MinValue;
+        public string roosalampoasetus = null;
 
         public Form1()
         {
@@ -320,7 +322,8 @@ namespace CozifyWindows
 
             parseSpotPrices(readSetting("spot_price_list"));
 
-            temperatureLogFile = Path.Combine(Application.StartupPath, "temperatures.txt");
+            string datestring = DateTime.Now.Year.ToString() + "-" + DateTime.Now.Month.ToString("00") + "-" + DateTime.Now.Day.ToString("00");
+            temperatureLogFile = Path.Combine(Application.StartupPath, $"temperatures-{datestring}.txt");
 
             var devices_setting = readSetting("devices");
             if (string.IsNullOrWhiteSpace(devices_setting) == false)
@@ -370,7 +373,7 @@ namespace CozifyWindows
             }
         }
 
-        public void log(string text, bool printScreen = true)
+        public void log(string text, bool printScreen = true, bool error = false)
         {
             string logline = DateTime.Now.ToString() + " : " + text + Environment.NewLine;
 
@@ -380,7 +383,29 @@ namespace CozifyWindows
             }
             logQueue.Enqueue(logline);
 
+            if (error == true)
+            {
+                if (string.IsNullOrWhiteSpace(Properties.Settings.Default.smtp_server) == false)
+                {
+                    try
+                    {
+                        var sc = new System.Net.Mail.SmtpClient(Properties.Settings.Default.smtp_server, Convert.ToInt32(Properties.Settings.Default.smtp_port));
+                        var mm = new System.Net.Mail.MailMessage(Properties.Settings.Default.smtp_from_address, Properties.Settings.Default.smtp_to_address, "CozifyWindows error", logline);
+                        if (string.IsNullOrWhiteSpace(Properties.Settings.Default.smtp_user) == false)
+                        {
+                            sc.Credentials = new System.Net.NetworkCredential(Properties.Settings.Default.smtp_user, Properties.Settings.Default.smtp_password);
+                        }
+                        sc.EnableSsl = false;
+                        sc.Send(mm);
+                    }
 
+                    catch (Exception ex1)
+                    {
+                        textBoxLog.AppendText("log smtp exception: " + ex1.ToString());
+                    }
+                    finally { }
+                }
+            }
 
             if (logLastWriteTime > DateTime.Now.AddSeconds(-10))
             {
@@ -484,9 +509,7 @@ namespace CozifyWindows
             }
             catch (Exception ex)
             {
-                log("HttpPost ERROR url: " + url);
-                string msg = "HttpPost ERROR " + ex.ToString();
-                log(msg);
+                log("HttpPost ERROR. url: [" + url+"] postdata:["+postData+"] exception: "+ex.ToString(), true, true);                
                 return null;
             }
             finally { }
@@ -553,7 +576,7 @@ namespace CozifyWindows
             catch (Exception ex)
             {
                 string msg = "ERROR " + ex.ToString();
-                log("HttpGet:" + msg);
+                log("HttpGet: url:[" + url + "] error:" + msg, true, true);
                 return null;
             }
             finally { }
@@ -963,7 +986,7 @@ namespace CozifyWindows
             }
             catch (Exception ex)
             {
-                log("downloadSpotPrices error " + ex.ToString());
+                log("downloadSpotPrices error " + ex.ToString(), true, true);
             }
             finally { }
             lastSpotPriceDownload = DateTime.Now;
@@ -1117,7 +1140,7 @@ namespace CozifyWindows
             }
             catch (Exception ex)
             {
-                log("telldus " + ex.ToString(), true);
+                log("telldus deviceid[" + deviceId + "]" + ex.ToString(), true, true);
             }
             finally { }
         }
@@ -1129,6 +1152,53 @@ namespace CozifyWindows
 
 
             await getDeviceList();
+
+
+            try
+            {
+                if (File.Exists(@"c:\temp\roosalampoasetus.txt"))
+                {
+                    var roosalämpö = File.ReadAllText(@"c:\temp\roosalampoasetus.txt");
+
+                    var roosadevices = new Dictionary<string, string>
+                    {
+                        { "21", "23c2bd1d-770e-4d22-9828-50933fbc7c4b" },
+                        { "22", "21f19dbe-91b7-43f0-bfc8-e9614e52ed64" },
+                        { "23", "baecda2c-18a6-4587-9997-dac378ebf0c4" },
+                        { "24", "edfc1c9b-aa3e-476c-8a1f-5bcfa2760c92" },
+                        { "25", "77d601f7-c775-4e5b-86f7-86bfae48fc36" }
+                    };
+
+
+                    //selected temperature has changed
+                    if (roosalämpö != roosalampoasetus)
+                    {
+                        //check that dictionary has temperature value
+                        if (roosadevices.TryGetValue(roosalämpö, out string roosa_device_id))
+                        {
+
+                            //loop through all devices. Turn selected device on, and others off
+                            foreach (var key in roosadevices.Keys)
+                            {
+                                roosadevices.TryGetValue(key, out string dev_id);
+                                bool device_on = false;
+                                if (key == roosalämpö)
+                                {
+                                    device_on = true;
+                                }
+                                await deviceControl(dev_id, device_on);
+                            }
+                        }
+                        roosalampoasetus = roosalämpö;
+                    }
+                }
+            }
+            catch (Exception ex11)
+            {
+                log("timer2_tick: roosalampo exception1: " + ex11.ToString(), true, true);
+            }
+
+
 
             var devicecontrol = new List<string>();
 
@@ -1156,6 +1226,20 @@ namespace CozifyWindows
                         var last_seen_date_local = last_seen_date_utc.ToLocalTime();
                         var last_seen_datetime_string = dateString(last_seen_date_utc);
                         sb.AppendLine(date + "\t" + dev.id + "\t" + last_seen_datetime_string + "\t" + dev.temperature.ToString() + "\t" + dev.name);
+
+                        if (dev.name.ToLower().Contains("roosa"))
+                        {
+                            try
+                            {
+                                System.IO.File.WriteAllText(@"c:\temp\roosalampomitattu.txt", dev.temperature.ToString());
+                            }
+                            catch (Exception ex11)
+                            {
+                                log("timer2_tick: roosalampo exception2: " + ex11.ToString(), true, true);
+                            }
+                            finally { }
+                        }
+
                     }
                 }
 
@@ -1191,7 +1275,10 @@ namespace CozifyWindows
                 {
                     timer_spot_price_seconds_string = data[3];
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    log("timer2_Tick exception 1. Datarow:[" + row + "] exception: " + ex.ToString(), true, true);
+                }
                 finally { }
 
                 int.TryParse(timer_spot_price_seconds_string, out int timer_spot_price_seconds);
@@ -1345,19 +1432,18 @@ namespace CozifyWindows
 
 
 
-                string telldusDeviceId = "";
+                string telldusDeviceIdList = "";
 
                 try
                 {
-                    telldusDeviceId = data[10];
+                    telldusDeviceIdList = data[10];
                 }
                 catch { }
                 finally { }
 
-
-
-                if (string.IsNullOrWhiteSpace(telldusDeviceId) == false)
+                if (string.IsNullOrWhiteSpace(telldusDeviceIdList) == false)
                 {
+                    var telldusdevices = telldusDeviceIdList.Split(',');
 
                     var device2 = getDevice(device_id);
                     if (device2 != null)
@@ -1372,9 +1458,24 @@ namespace CozifyWindows
                         }
                         if (executeTelldus == true)
                         {
-                            telldus(device2.isOn, telldusDeviceId);
+                            bool first = true;
+                            foreach (string telldusDeviceId in telldusdevices)
+                            {
+                                if (string.IsNullOrWhiteSpace(telldusDeviceId) == true)
+                                {
+                                    continue;
+                                }
+                                if (first == false)
+                                {
+                                    await Task.Delay(1000);
+                                }
+                                first = false;
+                                telldus(device2.isOn, telldusDeviceId);
+
+                            }
                             deviceStatusMemory.Remove(device_id);
                             deviceStatusMemory.Add(device_id, device2.isOn);
+
                         }
                     }
                 }
@@ -1626,18 +1727,26 @@ namespace CozifyWindows
             while (mqtt_payload.Count > 0)
             {
                 var item = mqtt_payload.Dequeue();
-                var data1 = item.Split('}');
-                var data2 = data1[0].Split(new string[] { "\"data\":\t\"" }, StringSplitOptions.None);
-                var data3 = data2[1].Split('"');
-                var y = data3[0];
+
+                //     log("mqtt payload: " + item);
+
+                //            var data1 = item.Split('}');
+                //              var data2 = data1[0].Split(new string[] { "\"data\":\t\"" }, StringSplitOptions.None);
+                //                var data3 = data2[1].Split('"');
+
+                dynamic json = JsonConvert.DeserializeObject(item);
+                string y = json.data;
+                //var y = data3[0];
                 var data = y.Replace("0201061BFF990405", "");
+                string ts = json.ts;
                 var sensor_id = data.Substring(34);
                 data = data.Substring(0, 4);
                 var z = Convert.ToInt16(data, 16);
                 double temperature = z * 0.005;
-                var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
-                var data30 = data20[1].Split('"');
-                var unix = Convert.ToDouble(data30[0]);
+                //                var data20 = data1[0].Split(new string[] { "\"ts\":\t\"" }, StringSplitOptions.None);
+                //              var data30 = data20[1].Split('"');
+                //var unix = Convert.ToDouble(data30[0]);
+                var unix = Convert.ToDouble(ts);
                 var ruuvi_datetime = UnixTimeStampToDateTime(unix);
                 string timestamp = ruuvi_datetime.Year.ToString() + "-" + ruuvi_datetime.Month.ToString("00") + "-" + ruuvi_datetime.Day.ToString("00") + " " + ruuvi_datetime.Hour.ToString() + ":" + ruuvi_datetime.Minute.ToString("00") + ":" + ruuvi_datetime.Second.ToString("00");
                 log(@"Received payload
