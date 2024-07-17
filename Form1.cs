@@ -1151,54 +1151,7 @@ namespace CozifyWindows
             timer2.Interval = 30000;
 
 
-            await getDeviceList();
-
-
-            try
-            {
-                if (File.Exists(@"c:\temp\roosalampoasetus.txt"))
-                {
-                    var roosalämpö = File.ReadAllText(@"c:\temp\roosalampoasetus.txt");
-
-                    var roosadevices = new Dictionary<string, string>
-                    {
-                        { "21", "23c2bd1d-770e-4d22-9828-50933fbc7c4b" },
-                        { "22", "21f19dbe-91b7-43f0-bfc8-e9614e52ed64" },
-                        { "23", "baecda2c-18a6-4587-9997-dac378ebf0c4" },
-                        { "24", "edfc1c9b-aa3e-476c-8a1f-5bcfa2760c92" },
-                        { "25", "77d601f7-c775-4e5b-86f7-86bfae48fc36" }
-                    };
-
-
-                    //selected temperature has changed
-                    if (roosalämpö != roosalampoasetus)
-                    {
-                        //check that dictionary has temperature value
-                        if (roosadevices.TryGetValue(roosalämpö, out string roosa_device_id))
-                        {
-
-                            //loop through all devices. Turn selected device on, and others off
-                            foreach (var key in roosadevices.Keys)
-                            {
-                                roosadevices.TryGetValue(key, out string dev_id);
-                                bool device_on = false;
-                                if (key == roosalämpö)
-                                {
-                                    device_on = true;
-                                }
-                                await deviceControl(dev_id, device_on);
-                            }
-                        }
-                        roosalampoasetus = roosalämpö;
-                    }
-                }
-            }
-            catch (Exception ex11)
-            {
-                log("timer2_tick: roosalampo exception1: " + ex11.ToString(), true, true);
-            }
-
-
+            await getDeviceList();          
 
             var devicecontrol = new List<string>();
 
@@ -1225,21 +1178,7 @@ namespace CozifyWindows
                         var last_seen_date_utc = UnixTimeStampToDateTime(last_seen);
                         var last_seen_date_local = last_seen_date_utc.ToLocalTime();
                         var last_seen_datetime_string = dateString(last_seen_date_utc);
-                        sb.AppendLine(date + "\t" + dev.id + "\t" + last_seen_datetime_string + "\t" + dev.temperature.ToString() + "\t" + dev.name);
-
-                        if (dev.name.ToLower().Contains("roosa"))
-                        {
-                            try
-                            {
-                                System.IO.File.WriteAllText(@"c:\temp\roosalampomitattu.txt", dev.temperature.ToString());
-                            }
-                            catch (Exception ex11)
-                            {
-                                log("timer2_tick: roosalampo exception2: " + ex11.ToString(), true, true);
-                            }
-                            finally { }
-                        }
-
+                        sb.AppendLine(date + "\t" + dev.id + "\t" + last_seen_datetime_string + "\t" + dev.temperature.ToString() + "\t" + dev.name);                       
                     }
                 }
 
